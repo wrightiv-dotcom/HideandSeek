@@ -48,7 +48,7 @@ world.player.x=4.2;world.player.gaitPhase=1;keys={s:true};mode='playing';tick(.0
 const cameraSave=JSON.parse(motionGame.store['hollow-house-v1']);boot(cameraSave).run(`assert.equal(cameraMode,'third');assert.equal($('cameraView').value,'third');`);
 console.log('PASS: movement-driven walk/run cycles, planted idle feet, blocked movement, enemy gait frames, wall-safe third-person camera, close-camera rendering and saved view choice.');
 const hidingGame=boot();hidingGame.run(`
- makeWorld();assert(world.furniture.some(item=>item.type==='wardrobe'));assert(world.furniture.some(item=>item.type==='cabinet'));assert(Number.isInteger(world.decorSeed));
+ makeWorld();world.size=9;world.grid=Array.from({length:9},(_,y)=>Array.from({length:9},(_,x)=>(x>0&&x<8&&y>0&&y<8&&(x===4||y===4))?0:1));delete world.furniture;decorateMaze();assert(world.furniture.some(item=>item.type==='wardrobe'));assert(world.furniture.some(item=>item.type==='cabinet'));assert(Number.isInteger(world.decorSeed));
  const originals=world.furniture;decorateMaze();assert.equal(world.furniture,originals);
  world.size=9;world.grid=Array.from({length:9},(_,y)=>Array.from({length:9},(_,x)=>x===0||x===8||y===0||y===8?1:0));
  world.furniture=[{id:'test-wardrobe',type:'wardrobe',x:2.5,y:3.5,nx:1,ny:0,height:.93}];world.player={x:3.5,y:3.5,angle:Math.PI};world.enemy={x:7.5,y:7.5,state:'patrol',target:null,timer:0};mode='playing';
