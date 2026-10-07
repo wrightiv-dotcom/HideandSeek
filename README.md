@@ -10,6 +10,10 @@ The main menu fades in over a haunted-house picture with a dripping blood title.
 
 The pause menu includes **Back to home**. It saves your run and returns to the haunted title screen; select the same mode and stage to resume your position and collected relics.
 
+Wardrobes and low cabinets are solid 3D shapes with shaded side faces, wooden panels, brass handles, and perspective tops. Approach a wardrobe and press **H** on computer or tap **Hide** on phone. Use the same control to leave. You cannot move or use the flashlight while hidden. Hiding protects you if Slenderman did not see you enter; if he saw you enter while chasing, he can still catch you. Hidden runs can be paused, saved, and resumed.
+
+Wall pictures vary between mazes: Slenderman, spiders, strange objects, a man and his family, a watching eye, and an old chapel. Being caught plays a loud, high-pitched synthesized scream when sound effects are enabled; muting effects stops it.
+
 - **Normal mode** keeps the original survival gameplay, with portraits of Slenderman, recessed closets, wooden wardrobes, and aged wall panels throughout the maze.
 - **Psycho mode** starts in blackout darkness. Press **F** or tap **Light** to toggle the flashlight. Blood, cobwebs, brief harmless scares, and positional synthesized screams add to the atmosphere. Sound effects start when entering this mode and can be muted in Settings. Each mode saves its own stages and progress.
 - **Phone controls:** drag the joystick to walk or strafe; swipe the scene to look horizontally or vertically. Hold **Hold to run** to sprint, tap **Pause** to stop, and tap **Light** for the flashlight. Portrait and landscape layouts are supported. The header's Controls button switches device controls.

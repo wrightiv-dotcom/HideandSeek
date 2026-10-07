@@ -47,3 +47,21 @@ world.player.x=4.2;world.player.gaitPhase=1;keys={s:true};mode='playing';tick(.0
 `);
 const cameraSave=JSON.parse(motionGame.store['hollow-house-v1']);boot(cameraSave).run(`assert.equal(cameraMode,'third');assert.equal($('cameraView').value,'third');`);
 console.log('PASS: movement-driven walk/run cycles, planted idle feet, blocked movement, enemy gait frames, wall-safe third-person camera, close-camera rendering and saved view choice.');
+const hidingGame=boot();hidingGame.run(`
+ makeWorld();assert(world.furniture.some(item=>item.type==='wardrobe'));assert(world.furniture.some(item=>item.type==='cabinet'));assert(Number.isInteger(world.decorSeed));
+ const originals=world.furniture;decorateMaze();assert.equal(world.furniture,originals);
+ world.size=9;world.grid=Array.from({length:9},(_,y)=>Array.from({length:9},(_,x)=>x===0||x===8||y===0||y===8?1:0));
+ world.furniture=[{id:'test-wardrobe',type:'wardrobe',x:2.5,y:3.5,nx:1,ny:0,height:.93}];world.player={x:3.5,y:3.5,angle:Math.PI};world.enemy={x:7.5,y:7.5,state:'patrol',target:null,timer:0};mode='playing';
+ assert.equal(valid(2.5,3.5),false);assert.equal(valid(3.5,3.5),true);assert.equal(sees({x:1.5,y:3.5},world.player),false);
+ assert.equal(nearbyWardrobe().id,'test-wardrobe');assert.equal(toggleHiding(),true);assert.equal(world.player.hidingSeen,false);assert.equal(flashlightOn,false);
+ const before={x:world.player.x,y:world.player.y};keys={w:true,shift:true};world.enemy={...before,state:'patrol',target:null,timer:0};tick(.04);assert.equal(mode,'playing');assert.deepEqual({x:world.player.x,y:world.player.y},before);
+ persist();draw();assert.equal(VIEW.normalWalls.length,11);assert.equal(VIEW.furnitureMaterials.wardrobe.width,512);
+`);
+const hiddenSave=JSON.parse(hidingGame.store['hollow-house-v1']);boot(hiddenSave).run(`assert.equal(world.player.hidingId,'test-wardrobe');assert.equal(world.furniture[0].id,'test-wardrobe');`);
+hidingGame.run(`
+ assert.equal(toggleHiding(),true);assert.equal(world.player.hidingId,undefined);assert.equal(flashlightOn,true);
+ world.enemy={x:4.5,y:3.5,state:'chase',target:{...world.player},timer:4};assert.equal(toggleHiding(),true);assert.equal(world.player.hidingSeen,true);
+ setEffects(true);world.enemy.x=world.player.x;world.enemy.y=world.player.y;tick(0);assert.equal(mode,'scare');assert.equal(stingVoices.size,3);assert([...stingVoices].every(voice=>voice.sources.length===2));
+ setEffects(false);assert.equal(stingVoices.size,0);finishJumpscare();
+`);
+console.log('PASS: solid furniture/line-of-sight, wardrobe entry/exit, hidden movement lock, unseen protection, seen-entry capture, saved hiding state, varied pictures, and catch-scream mute cleanup.');
