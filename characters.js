@@ -75,7 +75,10 @@ function drawShadowEntity(c,phase=0,motion=0,running=false){
  const head=c.createRadialGradient(90,27,1,97,34,25);head.addColorStop(0,'#b7bfb5');head.addColorStop(.3,'#909d98');head.addColorStop(.72,'#4b5b62');head.addColorStop(1,'#17242d');c.fillStyle=head;c.beginPath();c.ellipse(96,35,16,27,0,0,7);c.fill();c.strokeStyle='#54515e44';c.lineWidth=.8;c.beginPath();c.ellipse(96,35,16,27,0,Math.PI*.92,Math.PI*1.52);c.stroke();
  c.save();c.beginPath();c.ellipse(96,35,16,27,0,0,7);c.clip();for(let i=0;i<280;i++){const x=80+(Math.sin(i*71.31)*.5+.5)*32,y=8+(Math.cos(i*39.73)*.5+.5)*54;c.fillStyle=i%3?'#9a91aa12':'#00000566';c.fillRect(x,y,.25+(i%4)*.12,.4)}c.restore();
  c.strokeStyle='#39354433';c.lineWidth=.35;for(let i=0;i<6;i++){c.beginPath();c.moveTo(86+i*4,18);c.bezierCurveTo(84+i*5,30,91+i*2,38,89+i*3,52);c.moveTo(85+i*4,23+i*3);c.lineTo(88+i*4,25+i*3);c.lineTo(87+i*4,30+i*3);c.stroke()}
- for(const side of [-1,1]){const x=96+side*7,y=34;c.fillStyle='#010105';c.beginPath();c.ellipse(x,y,6,4,side*.14,0,7);c.fill();const glow=c.createRadialGradient(x,y,0,x,y,13);glow.addColorStop(0,'#ff271bcc');glow.addColorStop(.25,'#dc111585');glow.addColorStop(1,'#ff000000');c.fillStyle=glow;c.fillRect(x-14,y-14,28,28);c.shadowColor='#ff1818';c.shadowBlur=8;const fire=c.createRadialGradient(x,y,0,x,y,4);fire.addColorStop(0,'#ffdab1');fire.addColorStop(.2,'#ff7950');fire.addColorStop(.65,'#ff2218');fire.addColorStop(1,'#a50811');c.fillStyle=fire;c.beginPath();c.ellipse(x,y,4,1.7,side*.17,0,7);c.fill();c.shadowBlur=0}
+ // Recessed, featureless facial shadows match the pale reference.
+ for(const side of [-1,1]){const x=96+side*7,y=34,shade=c.createRadialGradient(x,y,0,x,y,8);shade.addColorStop(0,'#0c101bea');shade.addColorStop(.45,'#303946b0');shade.addColorStop(1,'#78838900');c.fillStyle=shade;c.fillRect(x-9,y-9,18,18)}
+ c.fillStyle='#c1c9c9';c.beginPath();c.moveTo(88,59);c.lineTo(104,59);c.lineTo(98,82);c.lineTo(96,88);c.lineTo(94,82);c.closePath();c.fill();c.fillStyle='#05070b';c.beginPath();c.moveTo(95,63);c.lineTo(98,63);c.lineTo(100,93);c.lineTo(96,99);c.lineTo(93,93);c.closePath();c.fill();
+
  finishShadowDetails(c);c.restore();c.restore();
 }
 function drawSurvivorBack(c,phase=0,motion=0,running=false){
