@@ -17,7 +17,7 @@ game.run(`
  assert.equal(mode,'home');assert.equal(best,0);assert.equal(selectStage(2),false);assert.equal(profile.outfit,'field');
  renderStages();assert.equal($('stageGrid').children[1].disabled,true);
  $('start').onclick();assert.equal(mode,'playing');assert.equal(music,true);updateMusic();assert(musicBus);let count=musicNodes.length;updateMusic();assert.equal(musicNodes.length,count);draw();assert.equal(VIEW.w,1000);assert.equal(VIEW.texture.width,512);assert.equal(VIEW.sprites.enemy.width,576);
- assert.equal(VIEW.enemyFrames.length,4);for(const outfit of ['field','padded','tactical']){profile.outfit=outfit;for(const hair of ['short','long','hood']){profile.hair=hair;characterUI();draw()}}persist();assert.equal(JSON.parse(localStorage.getItem(KEY)).profile.outfit,'tactical');
+ assert.equal(VIEW.enemyFrames.length,4);for(const gender of ['male','female']){profile.gender=gender;for(const outfit of ['field','padded','tactical']){profile.outfit=outfit;for(const hair of ['short','long','hood']){profile.hair=hair;characterUI();draw()}}}persist();assert.equal(JSON.parse(localStorage.getItem(KEY)).profile.outfit,'tactical');assert.equal(JSON.parse(localStorage.getItem(KEY)).profile.gender,'female');
  const clearStage=()=>{world.relics.forEach(r=>r.taken=true);world.player={...world.exit};world.enemy={x:1.5,y:1.5,state:'patrol',target:null,timer:0};tick(0)};
  clearStage();assert.equal(best,1);assert.equal(level,2);assert.equal(mode,'won');assert.equal(selectStage(3),false);
  $('start').onclick();world.player.angle=.8;persist();const stageTwo=world;

@@ -44,7 +44,7 @@ Keep that terminal open. The forwarded address is `https://YOUR-CODESPACE-NAME-8
 - Open Stages to choose a level. Stage 1 is available immediately; completing it unlocks Stage 2, and so on. Completed stages can be replayed. Each unfinished stage keeps its own saved run when you switch stages.
 - When Slenderman catches you, his red-eyed face lunges into view with a brief jumpscare and a synthesized sound sting (when sound effects are enabled).
 - Settings has separate toggles for sound effects and eerie background music, plus Save & return home. Music begins after your first interaction and continues in menus. Preferences are saved; music is enabled by default.
-- Customize your detailed survivor in the sidebar with a name, coat color, skin tone, hair, and explorer, quilted, or tactical outfit. Progress, collected relics, your current position, and your character save automatically in this browser. Use Save & pause before leaving.
+- Customize your detailed survivor in the sidebar with a female or male character, name, coat color, skin tone, hair, and explorer, quilted, or tactical outfit. Progress, collected relics, your current position, and your character save automatically in this browser. Use Save & pause before leaving.
 - Being caught restarts the current floor with a new maze; cleared floors remain saved.
 - Being caught clears only the caught stage’s run; other saved stages and unlocks are preserved.
 - Touch direction controls appear on smaller screens. Drag across the game to look around.
