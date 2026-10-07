@@ -196,7 +196,7 @@ function drawFlashlight(bob){
 function render3D(){
  if(!VIEW.buffer)initView();const c=VIEW.context,W=VIEW.w,H=VIEW.h;
  if(!world){let g=ctx.createLinearGradient(0,0,0,700);g.addColorStop(0,'#080d0c');g.addColorStop(1,'#26352c');ctx.fillStyle=g;ctx.fillRect(0,0,1000,700);ctx.strokeStyle='#47604a';for(let i=0;i<7;i++){let inset=80+i*55;ctx.strokeRect(inset,inset*.6,1000-2*inset,700-inset*1.2)}return}
- let player=world.player,p=player.hidingId?{...player,height:.5,horizonRatio:.5,distance:0}:getCameraPose(),angle=p.angle||0,dir={x:Math.cos(angle),y:Math.sin(angle)},plane={x:-dir.y*VIEW.fov,y:dir.x*VIEW.fov};
+ let player=world.player,p=player.hidingId?{...player,height:.5,horizonRatio:.5,distance:0}:getCameraPose(),angle=p.angle||0,dir={x:Math.cos(angle),y:Math.sin(angle)},plane={x:-dir.y*VIEW.fov*((canvas.clientWidth||1000)/(canvas.clientHeight||700))/(1000/700),y:dir.x*VIEW.fov*((canvas.clientWidth||1000)/(canvas.clientHeight||700))/(1000/700)};
  let walking=mode==='playing'&&player.motion>0,bob=walking?Math.sin((player.gaitPhase||0)*2)*(player.running?5:2)*(cameraMode==='third'?.35:1):0,horizon=H*(p.horizonRatio+(player.lookOffset||0))+bob;
  const gpuRendered=renderGpuScene(p,horizon);
  if(!gpuRendered)drawSurfaces(p,dir,plane,horizon);
