@@ -2,6 +2,24 @@
 
 Open `index.html` in a modern browser to play. No install or build is needed.
 
+## GitHub Codespaces (Bash/Linux)
+
+Push this project, including `.devcontainer`, to your GitHub repository, then choose **Code → Codespaces → Create codespace**. The container uses Bash, runs the game checks, and starts `python3 -m http.server 8000` automatically. Port 8000 is forwarded and configured to open in your browser. You can also open the **Ports** tab and select **Open in Browser** for port 8000.
+
+Run all checks manually:
+
+```bash
+bash scripts/check.sh
+```
+
+If the server isn't running:
+
+```bash
+python3 -m http.server 8000
+```
+
+Keep that terminal open. The forwarded address is `https://YOUR-CODESPACE-NAME-8000.app.github.dev`; use the actual address shown in the Ports tab. Port access stays private by default.
+
 - Explore in a textured first-person 3D view, with a flashlight, depth shading, and a local map.
 - WASD moves relative to where you face (A/D strafe). Q/E or left/right arrows turn; up/down arrows walk forward/backward. Click the game for mouse look. Escape releases the mouse and pauses. Hold Shift to sprint, and press Space to pause.
 - Collect every gold relic, then reach the green exit at the far corner of the maze.
