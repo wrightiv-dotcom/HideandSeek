@@ -36,13 +36,18 @@ function syncFlashlight(){
  $('modeLabel').textContent=difficulty.toUpperCase()+' MODE';
 }
 function toggleFlashlight(){flashlightOn=!flashlightOn;syncFlashlight()}
+function showTitleStep(id){
+ for(const step of ['titleWelcome','deviceChoice','modeChoice','stageChoice','storyChoice'])$(step).hidden=step!==id;
+ $('titleScreen').hidden=false;$('titleScreen').classList.toggle('setup-screen',id!=='titleWelcome');
+ document.body?.classList.add('title-open');
+}
 function openTitle(){
- $('titleScreen').hidden=false;$('titleWelcome').hidden=false;$('deviceChoice').hidden=true;$('modeChoice').hidden=true;
- document.body?.classList.add('title-open');syncTitleAudio();
+ showTitleStep('titleWelcome');syncTitleAudio();
 }
 function closeTitle(){$('titleScreen').hidden=true;document.body?.classList.remove('title-open')}
 function syncTitleAudio(){$('titleAudio').textContent=music&&audio?.state==='running'?'Music: on':'Enable music'}
 function chooseDifficulty(value){
+ pause();
  const next=value==='psycho'?'psycho':'normal';
  if(next!==difficulty){
   persist();difficulty=next;KEY=next==='psycho'?'hollow-house-psycho-v1':'hollow-house-v1';
@@ -51,7 +56,31 @@ function chooseDifficulty(value){
  }
  flashlightOn=next!=='psycho';falseScareTime=0;psychoCountdown=12;screamCountdown=7;
  if(next==='psycho')setEffects(true);
- syncFlashlight();characterUI();closeTitle();goHome(false);$('start').onclick();
+ syncFlashlight();characterUI();goHome(false);renderTitleStages();showTitleStep('stageChoice');
+}
+function renderTitleStages(){
+ $('titleStageMode').textContent=difficulty.toUpperCase()+' MODE';
+ const grid=$('titleStageGrid');grid.replaceChildren();
+ for(let n=1;n<=Math.max(12,best+3);n++){
+  const button=document.createElement('button'),unlocked=n<=best+1;
+  button.className='haunted-stage'+(n===level?' current':'');button.disabled=!unlocked;
+  button.setAttribute('aria-label','Stage '+n+' — '+(!unlocked?'locked':stageSaves[n]?'resume saved run':n<=best?'replay completed stage':'enter'));
+  button.innerHTML='<span>STAGE</span><strong>'+String(n).padStart(2,'0')+'</strong><small>'+(!unlocked?'Locked':stageSaves[n]?'Resume saved run':n<=best?'Replay':'Enter the maze')+'</small>';
+  button.onclick=()=>{if(selectStage(n)){storyIndex=0;showStory()}};grid.append(button);
+ }
+}
+let storyIndex=0;
+const storyPages=[
+ ['BEFORE THE DARKNESS','The woods.','You were traveling through the woods one evening. The path grew narrow, the trees closed in, and the last light disappeared behind you.'],
+ ['SOMETHING WAS THERE','Then, nothing.','A branch snapped somewhere behind you. You turned—but before you could see what was there, everything went dark.'],
+ ['THE HOUSE REMEMBERS','You woke in a maze.','Cold stone pressed against your skin. You opened your eyes inside a maze with no memory of how you arrived. Somewhere in the halls, footsteps began. Find the relics. Find the exit. Stay out of sight.']
+];
+function showStory(){
+ const [chapter,heading,text]=storyPages[storyIndex];
+ $('storyChapter').textContent=chapter;$('storyHeading').textContent=heading;$('storyText').textContent=text;
+ $('storyProgress').textContent=(storyIndex+1)+' / '+storyPages.length;
+ $('storyContinue').textContent=storyIndex===storyPages.length-1?(world?'Resume stage ':'Enter stage ')+level:'Continue';
+ showTitleStep('storyChoice');
 }
 const screamVoices=new Set();
 function stopScreams(){for(const voice of screamVoices){for(const node of voice.sources){try{node.stop()}catch{}}for(const node of voice.nodes)node.disconnect()}screamVoices.clear()}
@@ -207,12 +236,15 @@ function beginJumpscare(){
 function drawJumpscare(){renderShadowJumpscare(ctx,scareTime)}
 function finishJumpscare(){mode='dead';stopSting();canvas.classList.remove('scare-active');show('THE HOUSE CLAIMED YOU','It found you.',`Stage ${level} is still unlocked. Try a new maze or return to a completed stage. Your other saved runs are safe.`,'Retry stage '+level);updateUI()}
 $('settingsButton').onclick=()=>openMenu('settingsDialog');$('levelsButton').onclick=()=>openMenu('levelsDialog');$('closeSettings').onclick=()=>$('settingsDialog').close();$('closeLevels').onclick=()=>$('levelsDialog').close();$('effectsToggle').onchange=e=>setEffects(e.target.checked);$('musicToggle').onchange=e=>{music=e.target.checked;if(music)unlockAudio();else stopMusic();syncSettings();persist()};$('settingsHome').onclick=()=>{$('settingsDialog').close();goHome()};$('homeLink').onclick=e=>{e.preventDefault();goHome()};
-const overlayActions=document.createElement('div');overlayActions.className='overlay-actions';for(const [label,action] of [['Choose stage',()=>openMenu('levelsDialog')],['Settings',()=>openMenu('settingsDialog')]]){const b=document.createElement('button');b.className='secondary';b.textContent=label;b.onclick=action;overlayActions.append(b)}$('overlay').append(overlayActions);
+const overlayActions=document.createElement('div');overlayActions.className='overlay-actions';for(const [label,action] of [['Choose stage',()=>openMenu('levelsDialog')],['Settings',()=>openMenu('settingsDialog')],['Back to home',()=>goHome()]]){const b=document.createElement('button');b.className='secondary';b.textContent=label;b.onclick=action;overlayActions.append(b)}$('overlay').append(overlayActions);
 $('cameraView').onchange=e=>setCameraMode(e.target.value);$('cameraSetting').onchange=e=>setCameraMode(e.target.value);
-$('titlePlay').onclick=()=>{unlockAudio();syncTitleAudio();$('titleWelcome').hidden=true;$('deviceChoice').hidden=false};
+$('titlePlay').onclick=()=>{unlockAudio();syncTitleAudio();showTitleStep('deviceChoice')};
 $('titleAudio').onclick=()=>{music=!music||audio?.state!=='running';if(music){unlockAudio();setEffects(true)}else stopMusic();syncTitleAudio();syncSettings();persist()};
-for(const [id,value] of [['chooseComputer','computer'],['choosePhone','phone']])$(id).onclick=()=>{setDevice(value);$('deviceChoice').hidden=true;$('modeChoice').hidden=false;syncTitleAudio()};
-$('deviceBack').onclick=openTitle;$('modeBack').onclick=()=>{$('modeChoice').hidden=true;$('deviceChoice').hidden=false};
+for(const [id,value] of [['chooseComputer','computer'],['choosePhone','phone']])$(id).onclick=()=>{setDevice(value);showTitleStep('modeChoice');syncTitleAudio()};
+$('deviceBack').onclick=openTitle;$('modeBack').onclick=()=>{showTitleStep('deviceChoice')};
+$('stageBack').onclick=()=>showTitleStep('modeChoice');
+$('storyBack').onclick=()=>{renderTitleStages();showTitleStep('stageChoice')};
+$('storyContinue').onclick=()=>{unlockAudio();if(storyIndex<storyPages.length-1){storyIndex++;showStory()}else $('start').onclick()};
 $('chooseNormal').onclick=()=>chooseDifficulty('normal');$('choosePsycho').onclick=()=>chooseDifficulty('psycho');
 $('controlsButton').onclick=()=>{pause();setDevice(deviceMode==='phone'?'computer':'phone')};
 $('flashlightButton').onclick=toggleFlashlight;$('phoneFlashlight').onclick=toggleFlashlight;$('phonePause').onclick=pause;
