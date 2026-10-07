@@ -6,6 +6,8 @@ The GitHub Pages version works without a running terminal or Codespace. Saved pr
 
 Open `index.html` in a modern browser to play. No install or build is needed.
 
+The game now uses a WebGL 2 renderer for smooth, lit 3D geometry. Rounded survivor and Slenderman models animate continuously; clothing pockets, backpacks, fingers, pale faces, and glowing eyes have volume. Wall and floor textures use mipmaps, linear filtering, and anisotropic filtering where supported. Raised picture frames, ceiling beams, 3D furniture, contact shadows, rotating faceted relics, flashlight highlights, and distance fog give the maze more depth. Phone controls use a smaller render buffer for responsiveness. The original canvas renderer remains available automatically if WebGL is unavailable or the graphics context is lost.
+
 The main menu fades in over a haunted-house picture with a dripping blood title. Select **Play**, choose **Computer** or **Phone**, choose **Normal mode** or **Psycho mode**, then pick a stage from the haunted door selector. Click through three story screens about traveling through the woods, blacking out, and waking in a maze before entering the stage. Music starts after your first interaction; the title-screen music button and Settings control audio.
 
 The pause menu includes **Back to home**. It saves your run and returns to the haunted title screen; select the same mode and stage to resume your position and collected relics.

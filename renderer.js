@@ -130,7 +130,7 @@ function intersectFurniture(p,rx,ry,item){
  const x=p.x+rx*near,y=p.y+ry*near,u=axis==='x'?(y-b.minY)/(b.maxY-b.minY):(x-b.minX)/(b.maxX-b.minX);
  return {depth:near,far,axis,normal,u,front:axis==='x'?item.nx===normal:item.ny===normal};
 }
-function drawFurniture(p,dir,plane,horizon,z){
+function drawFurniture(p,dir,plane,horizon,z,paint=true){
  const c=VIEW.context,W=VIEW.w,H=VIEW.h;
  VIEW.furnitureOcclusion??=Array.from({length:W},()=>[]);for(const spans of VIEW.furnitureOcclusion)spans.length=0;
  for(let x=0;x<W;x++){
@@ -139,6 +139,7 @@ function drawFurniture(p,dir,plane,horizon,z){
   for(const {item,hit} of hits){
    const bottom=horizon+H*p.height/hit.depth,top=horizon+H*(p.height-item.height)/hit.depth;
    const roofTop=item.height<p.height?horizon+H*(p.height-item.height)/Math.min(hit.far,z[x]):top;
+   if(!paint){VIEW.furnitureOcclusion[x].push({top:roofTop,bottom,depth:hit.depth});continue}
    const light=difficulty==='psycho'?(flashlightOn?Math.max(.003,.95*Math.exp(-camera*camera*7)/(1+hit.depth*.24)):.003):(flashlightOn?.93:.35)/(1+hit.depth*.06);
    const texture=hit.front?VIEW.furnitureMaterials[item.type]:VIEW.furnitureMaterials.side;
    c.fillStyle='#0006';c.fillRect(x,bottom,1,H/hit.depth*.035);
@@ -197,15 +198,16 @@ function render3D(){
  if(!world){let g=ctx.createLinearGradient(0,0,0,700);g.addColorStop(0,'#080d0c');g.addColorStop(1,'#26352c');ctx.fillStyle=g;ctx.fillRect(0,0,1000,700);ctx.strokeStyle='#47604a';for(let i=0;i<7;i++){let inset=80+i*55;ctx.strokeRect(inset,inset*.6,1000-2*inset,700-inset*1.2)}return}
  let player=world.player,p=player.hidingId?{...player,height:.5,horizonRatio:.5,distance:0}:getCameraPose(),angle=p.angle||0,dir={x:Math.cos(angle),y:Math.sin(angle)},plane={x:-dir.y*VIEW.fov,y:dir.x*VIEW.fov};
  let walking=mode==='playing'&&player.motion>0,bob=walking?Math.sin((player.gaitPhase||0)*2)*(player.running?5:2)*(cameraMode==='third'?.35:1):0,horizon=H*(p.horizonRatio+(player.lookOffset||0))+bob;
- drawSurfaces(p,dir,plane,horizon);
+ const gpuRendered=renderGpuScene(p,horizon);
+ if(!gpuRendered)drawSurfaces(p,dir,plane,horizon);
  const z=new Float32Array(W);
- for(let x=0;x<W;x++){let camera=2*x/W-1,ray=castRay(p,dir.x+plane.x*camera,dir.y+plane.y*camera);z[x]=ray.depth;let height=H/ray.depth,top=horizon-height*(1-p.height);const walls=difficulty==='psycho'?VIEW.psychoWalls:VIEW.normalWalls,texture=walls[Math.abs(ray.x*17+ray.y*31+ray.side*7+(world.decorSeed||0))%walls.length];c.drawImage(texture,Math.floor(ray.u*511),0,1,512,x,top,1,height);let beam=Math.exp(-camera*camera*3),shade=difficulty==='psycho'?1-(flashlightOn?Math.max(.004,.92*Math.exp(-camera*camera*7)/(1+ray.depth*.24)):.003):Math.min(.94,.08+ray.depth*.052+(ray.side?.10:0)+(1-beam)*.24+(flashlightOn?0:.48));c.fillStyle=difficulty==='psycho'?`rgba(0,0,0,${shade})`:`rgba(4,9,11,${shade})`;c.fillRect(x,top,1,height);c.fillStyle=`rgba(0,0,0,${Math.min(.72,.25+ray.depth*.024)})`;c.fillRect(x,top+height*.96,1,height*.04);if(difficulty!=='psycho'&&(ray.x+ray.y)%4===0){c.fillStyle=`rgba(174,208,183,${Math.max(.02,.24-ray.depth*.016)})`;c.fillRect(x,top+height*.16,1,height*.004)}}
- drawFurniture(p,dir,plane,horizon,z);
- let items=[{...world.exit,type:'door'},...world.relics.filter(r=>!r.taken).map(r=>({...r,type:'relic'})),{...world.enemy,type:'enemy'}];
- if(!player.hidingId&&cameraMode==='third'&&p.distance>=.42)items.push({...player,type:'player'});
+ for(let x=0;x<W;x++){let camera=2*x/W-1,ray=castRay(p,dir.x+plane.x*camera,dir.y+plane.y*camera);z[x]=ray.depth;if(gpuRendered)continue;let height=H/ray.depth,top=horizon-height*(1-p.height);const walls=difficulty==='psycho'?VIEW.psychoWalls:VIEW.normalWalls,texture=walls[Math.abs(ray.x*17+ray.y*31+ray.side*7+(world.decorSeed||0))%walls.length];c.drawImage(texture,Math.floor(ray.u*511),0,1,512,x,top,1,height);let beam=Math.exp(-camera*camera*3),shade=difficulty==='psycho'?1-(flashlightOn?Math.max(.004,.92*Math.exp(-camera*camera*7)/(1+ray.depth*.24)):.003):Math.min(.94,.08+ray.depth*.052+(ray.side?.10:0)+(1-beam)*.24+(flashlightOn?0:.48));c.fillStyle=difficulty==='psycho'?`rgba(0,0,0,${shade})`:`rgba(4,9,11,${shade})`;c.fillRect(x,top,1,height);c.fillStyle=`rgba(0,0,0,${Math.min(.72,.25+ray.depth*.024)})`;c.fillRect(x,top+height*.96,1,height*.04);if(difficulty!=='psycho'&&(ray.x+ray.y)%4===0){c.fillStyle=`rgba(174,208,183,${Math.max(.02,.24-ray.depth*.016)})`;c.fillRect(x,top+height*.16,1,height*.004)}}
+ drawFurniture(p,dir,plane,horizon,z,!gpuRendered);
+ let items=[{...world.exit,type:'door'},...(gpuRendered?[]:world.relics.filter(r=>!r.taken).map(r=>({...r,type:'relic'}))),...(gpuRendered?[]:[{...world.enemy,type:'enemy'}])];
+ if(!gpuRendered&&!player.hidingId&&cameraMode==='third'&&p.distance>=.42)items.push({...player,type:'player'});
  let objects=items.map(o=>({...o,...projectObject(o,p,dir,plane)})).filter(o=>o.depth>.08).sort((a,b)=>b.depth-a.depth);
  for(let o of objects){let height=H/o.depth*(o.type==='relic'?.48:o.type==='enemy'?1.04:o.type==='player'?.88:.94),width=height*.75,screen=W/2*(1+o.side/o.depth),bottom=horizon+H*p.height/o.depth,top=bottom-height;if(o.type==='relic')top=horizon-height/2+Math.sin(world.time*3)*4/o.depth;let left=screen-width/2,right=screen+width/2;if(right<0||left>W)continue;let sprite=o.type==='enemy'?getEnemySprite(o):o.type==='player'?getPlayerSprite():VIEW.sprites[o.type];c.globalAlpha=(o.type==='player'?1:Math.max(.3,1-o.depth/18))*(difficulty==='psycho'&&o.type!=='relic'?(flashlightOn?Math.max(.02,Math.exp(-Math.pow(o.side/o.depth,2)*7)/(1+o.depth*.14)):.015):1);for(let x=Math.max(0,Math.floor(left));x<Math.min(W,right);x++)if(o.depth<z[x]){let u=Math.max(0,Math.min(sprite.width-1,Math.floor((x-left)/width*sprite.width)));drawOccludedSpriteColumn(sprite,u,x,top,height,o.depth)}c.globalAlpha=1}
- ctx.imageSmoothingEnabled=true;ctx.drawImage(VIEW.buffer,0,0,1000,700);
+ ctx.imageSmoothingEnabled=true;ctx.imageSmoothingQuality='high';ctx.drawImage(VIEW.buffer,0,0,1000,700);
  if(!player.hidingId&&cameraMode==='third'&&p.distance<.42){ctx.save();ctx.translate(500-96*2.7,350-35*2.7);ctx.scale(2.7,2.7);drawSurvivorBack(ctx,player.gaitPhase||0,walking?1:0,player.running);ctx.restore()}
  let vignette=ctx.createRadialGradient(500,340,180,500,340,670);vignette.addColorStop(0,'#00000000');vignette.addColorStop(1,'#00000070');ctx.fillStyle=vignette;ctx.fillRect(0,0,1000,700);
  // Your customized sleeve and a handheld flashlight stay visible in first person.

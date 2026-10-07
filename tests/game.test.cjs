@@ -9,7 +9,7 @@ function boot(saved){
  const node=()=>({gain:param(),frequency:param(),pan:param(),playbackRate:param(),connect:noop,disconnect:noop,start:noop,stop:noop});
  class AudioContext{constructor(){this.state='running';this.currentTime=0;this.destination={};this.sampleRate=44100}resume(){return Promise.resolve()}createOscillator(){return node()}createGain(){return node()}createStereoPanner(){return node()}createBiquadFilter(){return node()}createBufferSource(){return node()}createBuffer(n,size){return {getChannelData:()=>new Float32Array(size)}}}
 const sandbox={assert,console,Math,JSON,Set,Map,Float32Array,Uint8ClampedArray,performance:{now:()=>0},document:{hidden:false,activeElement:{tagName:'BODY'},createElement:element,getElementById:id=>elements[id]||(elements[id]=element()),querySelectorAll:()=>[],addEventListener:noop},window:{AudioContext,addEventListener:noop},localStorage:{getItem:k=>store[k],setItem:(k,v)=>store[k]=v},requestAnimationFrame:noop,setInterval:noop,confirm:()=>true};
- vm.createContext(sandbox);for(const file of ['characters.js','motion.js','renderer.js','ambience.js','game.js'])vm.runInContext(fs.readFileSync(file,'utf8'),sandbox);
+ vm.createContext(sandbox);for(const file of ['characters.js','motion.js','renderer.js','gpu.js','ambience.js','game.js'])vm.runInContext(fs.readFileSync(file,'utf8'),sandbox);
  return {run:code=>vm.runInContext(code,sandbox),store,elements};
 }
 const game=boot();
@@ -36,7 +36,7 @@ const restored=boot(saved);restored.run(`assert.equal(best,2);assert.equal(level
 const legacy=boot({best:4,level:5,profile:{name:'Legacy'},world:null});legacy.run(`assert.equal(best,4);assert.equal(level,5);assert.equal(profile.name,'Legacy');assert.equal(selectStage(6),false);assert.equal(selectStage(4),true);`);
 console.log('PASS: stage locks, sequential unlocks, replay progress, separate saved runs, settings/home, soundtrack, catch jumpscare, mute cleanup, reload and legacy saves.');
 const motionGame=boot();motionGame.run(`
-makeWorld();world.size=9;world.grid=Array.from({length:9},(_,y)=>Array.from({length:9},(_,x)=>x===0||x===8||y===0||y===8?1:0));world.player={x:4.5,y:4.5,angle:0};world.enemy={x:7.5,y:7.5,state:'patrol',target:null,timer:0};
+makeWorld();world.furniture=[];world.size=9;world.grid=Array.from({length:9},(_,y)=>Array.from({length:9},(_,x)=>x===0||x===8||y===0||y===8?1:0));world.player={x:4.5,y:4.5,angle:0};world.enemy={x:7.5,y:7.5,state:'patrol',target:null,timer:0};
 updateLocomotion(world.player,{x:4.24,y:4.5},.1);assert.equal(world.player.motion,1);assert.equal(world.player.running,false);const walkingPhase=world.player.gaitPhase;
 updateLocomotion(world.player,{x:4.5,y:4.5},.1);assert.equal(world.player.motion,0);assert.equal(world.player.gaitPhase,walkingPhase);
 updateLocomotion(world.player,{x:4.08,y:4.5},.1);assert.equal(world.player.running,true);assert(world.player.gaitPhase>walkingPhase);

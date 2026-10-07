@@ -1,0 +1,17 @@
+const assert=require('node:assert/strict'),fs=require('node:fs');
+const {chromium}=require('../.tools/browser/node_modules/playwright');
+(async()=>{
+ const browser=await chromium.launch({headless:true,executablePath:process.env.BROWSER_PATH||'C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe'}),page=await browser.newPage({viewport:{width:1360,height:1000}}),errors=[];
+ page.on('pageerror',e=>errors.push(e.message));page.on('console',m=>{if(m.type()==='warning'&&m.text().includes('fallback'))errors.push(m.text())});
+ await page.goto(process.env.GAME_URL||'http://127.0.0.1:8001');await page.evaluate(()=>{$('start').onclick();mode='paused';$('overlay').classList.add('hidden');draw()});
+ assert.equal(await page.evaluate(()=>!!GPU),true);assert.equal(await page.evaluate(()=>GPU.gl.getError()),0);
+ const stats=await page.evaluate(()=>{const times=[];for(let i=0;i<8;i++){const start=performance.now();draw();times.push(performance.now()-start)}return {milliseconds:times.sort((a,b)=>a-b)[4],antialias:GPU.gl.getContextAttributes().antialias,vertices:GPU.scene.count}});
+ assert(stats.vertices>1000);assert(stats.antialias);
+ fs.mkdirSync('.tools/qa',{recursive:true});await page.locator('#game').screenshot({path:'.tools/qa/gpu-normal.png'});
+ await page.evaluate(()=>{setDevice('phone');draw()});assert.equal(await page.evaluate(()=>GPU.surface.width),800);assert.equal(await page.evaluate(()=>GPU.gl.getError()),0);
+ await page.evaluate(()=>{difficulty='psycho';flashlightOn=false;draw()});const dark=await page.evaluate(()=>{let sum=0,d=ctx.getImageData(200,130,500,340).data;for(let i=0;i<d.length;i+=4)sum+=d[i]+d[i+1]+d[i+2];return sum});
+ await page.evaluate(()=>{flashlightOn=true;draw()});const lit=await page.evaluate(()=>{let sum=0,d=ctx.getImageData(200,130,500,340).data;for(let i=0;i<d.length;i+=4)sum+=d[i]+d[i+1]+d[i+2];return sum});assert(lit>dark*2);
+ await page.evaluate(()=>{difficulty='normal';setDevice('computer');world.size=9;world.grid=Array.from({length:9},(_,y)=>Array.from({length:9},(_,x)=>x===0||x===8||y===0||y===8?1:0));world.furniture=[];world.player={x:4.5,y:3.5,angle:Math.PI/2};world.enemy={x:5.5,y:5.0,state:'patrol',target:null,timer:0,moveAngle:-Math.PI/2};cameraMode='third';draw()});await page.locator('#game').screenshot({path:'.tools/qa/gpu-characters.png'});assert.equal(await page.evaluate(()=>GPU.gl.getError()),0);
+ await page.evaluate(()=>{gpuUnavailable=true;GPU=null;draw()});assert.equal(await page.evaluate(()=>!!VIEW.buffer),true);
+ assert.deepEqual(errors,[]);await browser.close();console.log('PASS: GPU scene/model rendering, anti-aliasing, shader errors, phone resolution, Psycho blackout/flashlight, and canvas fallback. Median desktop draw: '+stats.milliseconds.toFixed(1)+' ms (headless test browser).');
+})().catch(e=>{console.error(e);process.exit(1)});
