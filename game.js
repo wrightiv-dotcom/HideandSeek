@@ -1,5 +1,22 @@
 /* Hollow House: standalone canvas game, no build step required. */
 const $=id=>document.getElementById(id),canvas=$('game'),ctx=canvas.getContext('2d');
+const fullscreenButton=$('fullscreenButton');
+function syncFullscreen(){
+ const active=!!document.fullscreenElement;
+ fullscreenButton.textContent=active?'Exit fullscreen':'Fullscreen';
+ fullscreenButton.setAttribute('aria-pressed',String(active));
+}
+fullscreenButton.hidden=!document.documentElement?.requestFullscreen||!document.exitFullscreen||document.fullscreenEnabled===false;
+fullscreenButton.onclick=async()=>{
+ try{
+  if(document.fullscreenElement)await document.exitFullscreen();
+  else await document.documentElement.requestFullscreen();
+  fullscreenButton.removeAttribute('title');
+ }catch{fullscreenButton.title='Fullscreen could not open. Try again in your browser.'}
+ syncFullscreen();
+};
+document.addEventListener('fullscreenchange',syncFullscreen);
+syncFullscreen();
 const KEY='hollow-house-v1',COLORS=['#c6e69a','#c28d74','#9abccc','#b39acd','#e0bd68'];
 let profile={name:'Traveler',color:COLORS[0],hair:'short',skin:'#e3b18b',outfit:'field',gender:'male'},level=1,best=0,world=null,mode='ready',keys={},last=0,sound=false,audio;
 let stageSaves={},scareTime=0,cameraMode='first';
