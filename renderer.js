@@ -160,7 +160,9 @@ function drawWardrobeInterior(){
  ctx.save();ctx.fillStyle='#060403ed';ctx.fillRect(0,0,350,700);ctx.fillRect(650,0,350,700);ctx.fillRect(350,0,300,150);ctx.fillRect(350,555,300,145);
  const timber=ctx.createLinearGradient(350,0,650,0);timber.addColorStop(0,'#160e09');timber.addColorStop(.5,'#302117');timber.addColorStop(1,'#0c0806');ctx.fillStyle=timber;
  for(let y=154;y<555;y+=29){ctx.fillRect(350,y,300,22);ctx.fillStyle='#68503155';ctx.fillRect(350,y,300,1);ctx.fillStyle=timber}
- ctx.strokeStyle='#765b3766';ctx.lineWidth=3;ctx.strokeRect(347,148,306,410);ctx.restore();
+ ctx.strokeStyle='#765b3766';ctx.lineWidth=3;ctx.strokeRect(347,148,306,410);
+ const elapsed=world.player.hidingSeconds||0,stress=Math.max(0,(elapsed-3)/7),pulse=(1-Math.cos(elapsed*Math.PI*1.15))/2;
+ if(stress>0){const red=ctx.createRadialGradient(500,350,80,500,350,620);red.addColorStop(0,'rgba(160,0,20,'+(stress*pulse*.12)+')');red.addColorStop(1,'rgba(180,0,18,'+(stress*(.15+pulse*.5))+')');ctx.fillStyle=red;ctx.fillRect(0,0,1000,700)}ctx.restore();
 }
 function makeFloorTexture(){
  const tex=document.createElement('canvas');tex.width=tex.height=128;const c=tex.getContext('2d');c.fillStyle='#69726d';c.fillRect(0,0,128,128);c.fillStyle='#303d3c';c.fillRect(0,0,128,3);c.fillRect(0,0,3,128);c.fillStyle='#9ba397';c.fillRect(3,3,124,1);c.fillRect(3,3,1,124);

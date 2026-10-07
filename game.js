@@ -21,6 +21,13 @@ let KEY='hollow-house-v1';
 const COLORS=['#c6e69a','#c28d74','#9abccc','#b39acd','#e0bd68'];
 let difficulty='normal',deviceMode='computer',flashlightOn=true,joystickInput={forward:0,strafe:0},joystickPointer=null;
 let falseScareTime=0,psychoCountdown=12,screamCountdown=7;
+let deathReason='caught';
+function updateHidingLimit(dt){
+ if(!world?.player.hidingId)return false;
+ const p=world.player;p.hidingSeconds=(p.hidingSeconds||0)+dt;
+ if(p.hidingSeconds>=10-1e-6){beginJumpscare('wardrobe');updateUI();return true}
+ return false;
+}
 function resetJoystick(){joystickInput={forward:0,strafe:0};joystickPointer=null;$('joystickKnob').style.transform='translate(0px,0px)'}
 function setDevice(value){
  deviceMode=value==='phone'?'phone':'computer';resetJoystick();keys={};resetJoystick();
@@ -64,17 +71,17 @@ function nearbyWardrobe(){
 function toggleHiding(){
  if(mode!=='playing'||!world)return false;
  const p=world.player;
- if(p.hidingId){delete p.hidingId;delete p.hidingSeen;p.angle=p.angleBeforeHiding??p.angle;delete p.angleBeforeHiding;flashlightOn=p.lightBeforeHiding??true;delete p.lightBeforeHiding;syncFlashlight();keys={};resetJoystick();persist();updateUI();return true}
+ if(p.hidingId){delete p.hidingId;delete p.hidingSeen;delete p.hidingSeconds;p.angle=p.angleBeforeHiding??p.angle;delete p.angleBeforeHiding;flashlightOn=p.lightBeforeHiding??true;delete p.lightBeforeHiding;syncFlashlight();keys={};resetJoystick();persist();updateUI();return true}
  const wardrobe=nearbyWardrobe();if(!wardrobe)return false;
  p.hidingSeen=world.enemy.state==='chase'&&distance(world.enemy,p)<8&&sees(world.enemy,p);
- p.hidingId=wardrobe.id;p.angleBeforeHiding=p.angle||0;p.angle=Math.atan2(wardrobe.ny,wardrobe.nx);p.lightBeforeHiding=flashlightOn;flashlightOn=false;keys={};resetJoystick();stopFootsteps();syncFlashlight();persist();updateUI();return true;
+ p.hidingId=wardrobe.id;p.hidingSeconds=0;p.angleBeforeHiding=p.angle||0;p.angle=Math.atan2(wardrobe.ny,wardrobe.nx);p.lightBeforeHiding=flashlightOn;flashlightOn=false;keys={};resetJoystick();stopFootsteps();syncFlashlight();persist();updateUI();return true;
 }
-function updateHideUI(){
+function updateHideUI(){const elapsed=world?.player.hidingId?(world.player.hidingSeconds||0):0;canvas.style.filter=elapsed>3?'blur('+Math.min(6,(elapsed-3)*.86).toFixed(2)+'px)':'none';
  const hidden=!!world?.player.hidingId,near=mode==='playing'&&!hidden?nearbyWardrobe():null;
  $('hideButton').hidden=mode!=='playing'||(!hidden&&!near);$('phoneHide').hidden=!hidden&&!near;
  $('hideButton').textContent=hidden?'Leave wardrobe (H)':'Hide in wardrobe (H)';$('phoneHide').textContent=hidden?'Leave':'Hide';
  $('hideHint').hidden=mode!=='playing'||(!hidden&&!near);
- $('hideHint').textContent=hidden?(world.player.hidingSeen?'He saw you enter. This hiding place is unsafe.':'Hidden in the wardrobe. H / Leave to step out.'):deviceMode==='phone'?'A wardrobe is nearby. Tap Hide.':'Press H to hide in the nearby wardrobe.';
+ $('hideHint').textContent=hidden?(world.player.hidingSeen?'He saw you enter. This hiding place is unsafe.':'Leave before your air runs out: '+Math.max(0,10-(world.player.hidingSeconds||0)).toFixed(1)+'s ? H / Leave'):deviceMode==='phone'?'A wardrobe is nearby. Tap Hide.':'Press H to hide in the nearby wardrobe.';
 }
 function showTitleStep(id){
  for(const step of ['titleWelcome','deviceChoice','modeChoice','stageChoice','storyChoice'])$(step).hidden=step!==id;
@@ -236,7 +243,7 @@ function updateFootsteps(traveled,dt){
 }
 function show(kicker,title,text,button){$('overlayKicker').textContent=kicker;$('overlayTitle').textContent=title;$('overlayText').textContent=text;$('start').innerHTML=button+' <span>→</span>';$('overlay').classList.remove('hidden')}
 function updateUI(){updateHideUI(); document.body?.classList.toggle('phone-playing',deviceMode==='phone'&&mode==='playing'); $('phoneControls').hidden=deviceMode!=='phone'||mode!=='playing'; $('floor').textContent=String(level).padStart(2,'0');$('best').textContent='Best cleared: '+best;$('difficulty').textContent=`Floor ${level} · ${level<3?'The awakening':level<6?'It knows your footsteps':'Nowhere feels safe'}`;if(world){let n=world.relics.filter(r=>r.taken).length;$('relics').textContent=`RELICS ${n} / ${world.relics.length}`;let s=world.enemy.state;$('status').textContent=mode==='playing'?(s==='chase'?'IT SEES YOU — RUN':s==='search'?'SEARCHING YOUR LAST LOCATION':'SLENDERMAN IS PATROLLING'):'WAITING IN THE DARK';$('statusDot').style.background=s==='chase'?'#e67568':s==='search'?'#e0bd68':'#c6e69a'}}
-function tick(dt){let p=world.player,e=world.enemy;const playerBefore={x:p.x,y:p.y},enemyBefore={x:e.x,y:e.y};world.time+=dt;p.angle??=0;p.angle+=((keys.arrowright||keys.e?1:0)-(keys.arrowleft||keys.q?1:0))*2.1*dt;let forward=Math.max(-1,Math.min(1,(keys.w||keys.arrowup?1:0)-(keys.s||keys.arrowdown?1:0)+joystickInput.forward)),strafe=Math.max(-1,Math.min(1,(keys.d?1:0)-(keys.a?1:0)+joystickInput.strafe)),dx=Math.cos(p.angle)*forward-Math.sin(p.angle)*strafe,dy=Math.sin(p.angle)*forward+Math.cos(p.angle)*strafe,moving=forward||strafe,sprinting=!p.hidingId&&keys.shift&&moving&&world.stamina>0;let speed=sprinting?4.2:2.6;if(moving&&!p.hidingId){let len=Math.hypot(dx,dy);move(p,dx/Math.max(1,len)*speed*dt,dy/Math.max(1,len)*speed*dt)}updateLocomotion(p,playerBefore,dt);world.stamina=Math.max(0,Math.min(100,world.stamina+(sprinting?-34:22)*dt));let visible=(!p.hidingId||p.hidingSeen)&&distance(p,e)<Math.min(10,5+level*.35)&&sees(e,p);if(visible){if(e.state!=='chase')tone(75,.5);e.state='chase';e.target={...p};e.timer=4}else if(e.state==='chase'){e.state='search';e.timer=5;e.target={...e.target}}else if(sprinting&&distance(p,e)<Math.min(6,2.5+level*.15)){e.state='search';e.target={...p};e.timer=4}
+function tick(dt){if(updateHidingLimit(dt))return;let p=world.player,e=world.enemy;const playerBefore={x:p.x,y:p.y},enemyBefore={x:e.x,y:e.y};world.time+=dt;p.angle??=0;p.angle+=((keys.arrowright||keys.e?1:0)-(keys.arrowleft||keys.q?1:0))*2.1*dt;let forward=Math.max(-1,Math.min(1,(keys.w||keys.arrowup?1:0)-(keys.s||keys.arrowdown?1:0)+joystickInput.forward)),strafe=Math.max(-1,Math.min(1,(keys.d?1:0)-(keys.a?1:0)+joystickInput.strafe)),dx=Math.cos(p.angle)*forward-Math.sin(p.angle)*strafe,dy=Math.sin(p.angle)*forward+Math.cos(p.angle)*strafe,moving=forward||strafe,sprinting=!p.hidingId&&keys.shift&&moving&&world.stamina>0;let speed=sprinting?4.2:2.6;if(moving&&!p.hidingId){let len=Math.hypot(dx,dy);move(p,dx/Math.max(1,len)*speed*dt,dy/Math.max(1,len)*speed*dt)}updateLocomotion(p,playerBefore,dt);world.stamina=Math.max(0,Math.min(100,world.stamina+(sprinting?-34:22)*dt));let visible=(!p.hidingId||p.hidingSeen)&&distance(p,e)<Math.min(10,5+level*.35)&&sees(e,p);if(visible){if(e.state!=='chase')tone(75,.5);e.state='chase';e.target={...p};e.timer=4}else if(e.state==='chase'){e.state='search';e.timer=5;e.target={...e.target}}else if(sprinting&&distance(p,e)<Math.min(6,2.5+level*.15)){e.state='search';e.target={...p};e.timer=4}
  if(e.state==='search'){e.timer-=dt;if(e.timer<=0){e.state='patrol';e.target=null}}
  if(!e.target||(e.state==='patrol'&&distance(e,e.target)<.3))e.target=patrolTarget();if(e.target){let next=path(e,e.target),d=distance(e,next),es=(e.state==='chase'?1.9:1.15)+Math.min(1.2,(level-1)*.12);if(d>.04){let step=Math.min(es*dt,d);move(e,(next.x-e.x)/d*step,(next.y-e.y)/d*step)}}
  updateLocomotion(e,enemyBefore,dt,e.state==='chase',true);
@@ -270,11 +277,11 @@ function renderStages(){
 }
 function selectStage(n){if(!Number.isInteger(n)||n<1||n>best+1||mode==='scare')return false;pause();persist();level=n;world=stageSaves[n]||null;mode='home';$('levelsDialog').close();goHome(false);return true}
 function openMenu(id){if(mode==='scare')return;pause();keys={};resetJoystick();if(id==='levelsDialog')renderStages();syncSettings();$(id).showModal()}
-function beginJumpscare(){
+function beginJumpscare(reason='caught'){deathReason=reason;
  mode='scare';scareTime=0;keys={};resetJoystick();delete stageSaves[level];world=null;stopHeartbeat();stopFootsteps();stopScreams();releaseMouse();$('overlay').classList.add('hidden');canvas.classList.add('scare-active');persist();catchSting();
 }
 function drawJumpscare(){renderShadowJumpscare(ctx,scareTime)}
-function finishJumpscare(){mode='dead';stopSting();canvas.classList.remove('scare-active');show('THE HOUSE CLAIMED YOU','It found you.',`Stage ${level} is still unlocked. Try a new maze or return to a completed stage. Your other saved runs are safe.`,'Retry stage '+level);updateUI()}
+function finishJumpscare(){mode='dead';stopSting();canvas.classList.remove('scare-active');show(deathReason==='wardrobe'?'YOU STAYED TOO LONG':'THE HOUSE CLAIMED YOU',deathReason==='wardrobe'?'Your air ran out.':'It found you.',deathReason==='wardrobe'?`The wardrobe claimed you after 10 seconds. Stage ${level} is still unlocked. Leave hiding places before your vision fades.`:`Stage ${level} is still unlocked. Try a new maze or return to a completed stage. Your other saved runs are safe.`,'Retry stage '+level);updateUI()}
 $('settingsButton').onclick=()=>openMenu('settingsDialog');$('levelsButton').onclick=()=>openMenu('levelsDialog');$('closeSettings').onclick=()=>$('settingsDialog').close();$('closeLevels').onclick=()=>$('levelsDialog').close();$('effectsToggle').onchange=e=>setEffects(e.target.checked);$('musicToggle').onchange=e=>{music=e.target.checked;if(music)unlockAudio();else stopMusic();syncSettings();persist()};$('settingsHome').onclick=()=>{$('settingsDialog').close();goHome()};$('homeLink').onclick=e=>{e.preventDefault();goHome()};
 const overlayActions=document.createElement('div');overlayActions.className='overlay-actions';for(const [label,action] of [['Choose stage',()=>openMenu('levelsDialog')],['Settings',()=>openMenu('settingsDialog')],['Back to home',()=>goHome()]]){const b=document.createElement('button');b.className='secondary';b.textContent=label;b.onclick=action;overlayActions.append(b)}$('overlay').append(overlayActions);
 $('cameraView').onchange=e=>setCameraMode(e.target.value);$('cameraSetting').onchange=e=>setCameraMode(e.target.value);

@@ -65,3 +65,15 @@ hidingGame.run(`
  setEffects(false);assert.equal(stingVoices.size,0);finishJumpscare();
 `);
 console.log('PASS: solid furniture/line-of-sight, wardrobe entry/exit, hidden movement lock, unseen protection, seen-entry capture, saved hiding state, varied pictures, and catch-scream mute cleanup.');
+const timerGame=boot(hiddenSave);timerGame.run(`
+ mode='playing';world.player.hidingSeconds=0;tick(3);assert.equal(world.player.hidingSeconds,3);assert.equal(canvas.style.filter,'none');
+ tick(3);assert.equal(world.player.hidingSeconds,6);assert.match(canvas.style.filter,/blur/);persist();
+ pause();frame(1000);assert.equal(world.player.hidingSeconds,6);
+`);
+const timedSave=JSON.parse(timerGame.store['hollow-house-v1']);boot(timedSave).run(`assert.equal(world.player.hidingSeconds,6);`);
+timerGame.run(`
+ $('start').onclick();tick(3.99);assert.equal(mode,'playing');tick(.01);assert.equal(mode,'scare');assert.equal(deathReason,'wardrobe');assert.equal(world,null);assert.equal(canvas.style.filter,'none');
+ finishJumpscare();assert.equal(mode,'dead');assert.equal($('overlayTitle').textContent,'Your air ran out.');
+`);
+const escapeGame=boot(hiddenSave);escapeGame.run(`mode='playing';world.player.hidingSeconds=9;updateUI();assert.equal(toggleHiding(),true);assert.equal(world.player.hidingSeconds,undefined);assert.equal(canvas.style.filter,'none');assert.equal(toggleHiding(),true);assert.equal(world.player.hidingSeconds,0);`);
+console.log('PASS: 10-second hiding deadline, progressive blur, pause freeze, elapsed-time saves, automatic death, effect cleanup, and leave/re-enter reset.');

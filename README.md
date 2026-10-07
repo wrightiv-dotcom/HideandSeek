@@ -12,6 +12,8 @@ The pause menu includes **Back to home**. It saves your run and returns to the h
 
 Wardrobes and low cabinets are solid 3D shapes with shaded side faces, wooden panels, brass handles, and perspective tops. Approach a wardrobe and press **H** on computer or tap **Hide** on phone. Use the same control to leave. You cannot move or use the flashlight while hidden. Hiding protects you if Slenderman did not see you enter; if he saw you enter while chasing, he can still catch you. Hidden runs can be paused, saved, and resumed.
 
+Wardrobes become fatal after **10 seconds of active play**. Your vision progressively blurs and slowly pulses red after three seconds. A countdown warns you to leave. Pausing freezes the timer; saving preserves elapsed hiding time. Leaving clears the effects and resets the timer for the next entry. The survivor now has fabric folds, stitching, straps, a shaded backpack, and facial highlights; Slenderman has a sculpted pale head, textured suit, collar details, and red eyes.
+
 Wall pictures vary between mazes: Slenderman, spiders, strange objects, a man and his family, a watching eye, and an old chapel. Being caught plays a loud, high-pitched synthesized scream when sound effects are enabled; muting effects stops it.
 
 - **Normal mode** keeps the original survival gameplay, with portraits of Slenderman, recessed closets, wooden wardrobes, and aged wall panels throughout the maze.
