@@ -4,3 +4,4 @@ Thumbs.db
 node_modules/
 .codespaces-repo/
 .tools/
+.pages-site/

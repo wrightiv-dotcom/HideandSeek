@@ -1,6 +1,20 @@
 # Hollow House
 
+Play online: **https://wrightiv-dotcom.github.io/HideandSeek/**
+
+The GitHub Pages version works without a running terminal or Codespace. Saved progress stays in the browser you use to play.
+
 Open `index.html` in a modern browser to play. No install or build is needed.
+
+## Play locally
+
+In Git Bash, run:
+
+```bash
+bash scripts/local.sh
+```
+
+Open http://localhost:8000. Keep the terminal open while playing; press Ctrl+C to stop the server. This uses Node.js, requires no extra packages, and serves only the game files on your own computer.
 
 ## GitHub Codespaces (Bash/Linux)
 
