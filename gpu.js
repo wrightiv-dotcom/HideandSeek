@@ -67,7 +67,7 @@ function gpuIdentity(){return new Float32Array([1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1]
 function gpuCamera(p,horizon){
  const angle=p.angle||0,f=[Math.cos(angle),0,Math.sin(angle)],right=[-f[2],0,f[0]],eye=[p.x,p.height,p.y];
  const view=new Float32Array([right[0],0,-f[0],0,0,1,0,0,right[2],0,-f[2],0,-right[0]*eye[0]-right[2]*eye[2],-eye[1],f[0]*eye[0]+f[2]*eye[2],1]);
- const near=.025,far=60,projection=new Float32Array([1.4,0,0,0,0,2,0,0,0,2*horizon/700-1,-(far+near)/(far-near),-1,0,0,-2*far*near/(far-near),0]);
+ const near=.025,far=60,projection=new Float32Array([2/((canvas.clientWidth||1000)/(canvas.clientHeight||700)),0,0,0,0,2,0,0,0,2*horizon/700-1,-(far+near)/(far-near),-1,0,0,-2*far*near/(far-near),0]);
  return {vp:gpuMatrixMultiply(projection,view),eye,forward:[f[0],(horizon/700-.5)*1.5,f[2]]};
 }
 function buildGpuScene(g){

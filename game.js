@@ -1,16 +1,16 @@
 /* Hollow House: standalone canvas game, no build step required. */
 const $=id=>document.getElementById(id),canvas=$('game'),ctx=canvas.getContext('2d');
-const fullscreenButton=$('fullscreenButton');
+const fullscreenButton=$('fullscreenButton'),gameView=$('gameView');
 function syncFullscreen(){
  const active=!!document.fullscreenElement;
  fullscreenButton.textContent=active?'Exit fullscreen':'Fullscreen';
  fullscreenButton.setAttribute('aria-pressed',String(active));
 }
-fullscreenButton.hidden=!document.documentElement?.requestFullscreen||!document.exitFullscreen||document.fullscreenEnabled===false;
+fullscreenButton.hidden=!gameView?.requestFullscreen||!document.exitFullscreen||document.fullscreenEnabled===false;
 fullscreenButton.onclick=async()=>{
  try{
   if(document.fullscreenElement)await document.exitFullscreen();
-  else await document.documentElement.requestFullscreen();
+  else await gameView.requestFullscreen();
   fullscreenButton.removeAttribute('title');
  }catch{fullscreenButton.title='Fullscreen could not open. Try again in your browser.'}
  syncFullscreen();
@@ -83,8 +83,11 @@ function updateHideUI(){const elapsed=world?.player.hidingId?(world.player.hidin
  $('hideHint').hidden=mode!=='playing'||(!hidden&&!near);
  $('hideHint').textContent=hidden?(world.player.hidingSeen?'He saw you enter. This hiding place is unsafe.':'Leave before your air runs out: '+Math.max(0,10-(world.player.hidingSeconds||0)).toFixed(1)+'s ? H / Leave'):deviceMode==='phone'?'A wardrobe is nearby. Tap Hide.':'Press H to hide in the nearby wardrobe.';
 }
+let titleStep='titleWelcome',customizationReturn='deviceChoice';
 function showTitleStep(id){
- for(const step of ['titleWelcome','deviceChoice','modeChoice','stageChoice','storyChoice'])$(step).hidden=step!==id;
+ titleStep=id;
+ $('titleCustomize').hidden=id==='titleWelcome'||id==='customizeChoice';
+ for(const step of ['titleWelcome','deviceChoice','modeChoice','stageChoice','storyChoice','customizeChoice'])$(step).hidden=step!==id;
  $('titleScreen').hidden=false;$('titleScreen').classList.toggle('setup-screen',id!=='titleWelcome');
  document.body?.classList.add('title-open');
 }
@@ -268,6 +271,7 @@ function releaseMouse(){if(document.pointerLockElement===canvas)document.exitPoi
 function setEffects(enabled){sound=enabled;if(sound)unlockAudio();else{stopHeartbeat();stopFootsteps();stopSting();stopScreams()}syncSettings();persist()}
 function syncSettings(){$('sound').textContent='Sound: '+(sound?'on':'off');$('effectsToggle').checked=sound;$('musicToggle').checked=music;$('cameraView').value=cameraMode;$('cameraSetting').value=cameraMode}
 function goHome(showTitle=true){
+ if(showTitle&&document.fullscreenElement)document.exitFullscreen().catch(()=>{});
  if(mode==='scare')return;if(showTitle)openTitle();mode='home';keys={};resetJoystick();stopHeartbeat();stopFootsteps();stopScreams();releaseMouse();persist();
  show('WELCOME TO HOLLOW HOUSE','The house remembers.',`Stage ${best+1} is unlocked. ${world?'Your stage '+level+' run is saved.':'Complete each stage to open the next door.'} Choose a stage, customize your survivor, and enter if you dare.`,world?'Continue stage '+level:'Enter stage '+level);updateUI();
 }
@@ -285,6 +289,10 @@ function finishJumpscare(){mode='dead';stopSting();canvas.classList.remove('scar
 $('settingsButton').onclick=()=>openMenu('settingsDialog');$('levelsButton').onclick=()=>openMenu('levelsDialog');$('closeSettings').onclick=()=>$('settingsDialog').close();$('closeLevels').onclick=()=>$('levelsDialog').close();$('effectsToggle').onchange=e=>setEffects(e.target.checked);$('musicToggle').onchange=e=>{music=e.target.checked;if(music)unlockAudio();else stopMusic();syncSettings();persist()};$('settingsHome').onclick=()=>{$('settingsDialog').close();goHome()};$('homeLink').onclick=e=>{e.preventDefault();goHome()};
 const overlayActions=document.createElement('div');overlayActions.className='overlay-actions';for(const [label,action] of [['Choose stage',()=>openMenu('levelsDialog')],['Settings',()=>openMenu('settingsDialog')],['Back to home',()=>goHome()]]){const b=document.createElement('button');b.className='secondary';b.textContent=label;b.onclick=action;overlayActions.append(b)}$('overlay').append(overlayActions);
 $('cameraView').onchange=e=>setCameraMode(e.target.value);$('cameraSetting').onchange=e=>setCameraMode(e.target.value);
+$('titleCustomize').onclick=()=>{customizationReturn=titleStep;showTitleStep('customizeChoice')};
+$('customizeDone').onclick=()=>showTitleStep(customizationReturn);
+$('gamePause').onclick=()=>pause();
+$('gameSettings').onclick=()=>openMenu('settingsDialog');
 $('titlePlay').onclick=()=>{unlockAudio();syncTitleAudio();showTitleStep('deviceChoice')};
 $('titleAudio').onclick=()=>{music=!music||audio?.state!=='running';if(music){unlockAudio();setEffects(true)}else stopMusic();syncTitleAudio();syncSettings();persist()};
 for(const [id,value] of [['chooseComputer','computer'],['choosePhone','phone']])$(id).onclick=()=>{setDevice(value);showTitleStep('modeChoice');syncTitleAudio()};
