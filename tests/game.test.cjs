@@ -9,14 +9,15 @@ function boot(saved){
  const node=()=>({gain:param(),frequency:param(),pan:param(),playbackRate:param(),connect:noop,disconnect:noop,start:noop,stop:noop});
  class AudioContext{constructor(){this.state='running';this.currentTime=0;this.destination={};this.sampleRate=44100}resume(){return Promise.resolve()}createOscillator(){return node()}createGain(){return node()}createStereoPanner(){return node()}createBiquadFilter(){return node()}createBufferSource(){return node()}createBuffer(n,size){return {getChannelData:()=>new Float32Array(size)}}}
 const sandbox={assert,console,Math,JSON,Set,Map,Float32Array,Uint8ClampedArray,performance:{now:()=>0},document:{hidden:false,activeElement:{tagName:'BODY'},createElement:element,getElementById:id=>elements[id]||(elements[id]=element()),querySelectorAll:()=>[],addEventListener:noop},window:{AudioContext,addEventListener:noop},localStorage:{getItem:k=>store[k],setItem:(k,v)=>store[k]=v},requestAnimationFrame:noop,setInterval:noop,confirm:()=>true};
- vm.createContext(sandbox);for(const file of ['renderer.js','ambience.js','game.js'])vm.runInContext(fs.readFileSync(file,'utf8'),sandbox);
+ vm.createContext(sandbox);for(const file of ['characters.js','renderer.js','ambience.js','game.js'])vm.runInContext(fs.readFileSync(file,'utf8'),sandbox);
  return {run:code=>vm.runInContext(code,sandbox),store,elements};
 }
 const game=boot();
 game.run(`
- assert.equal(mode,'home');assert.equal(best,0);assert.equal(selectStage(2),false);
+ assert.equal(mode,'home');assert.equal(best,0);assert.equal(selectStage(2),false);assert.equal(profile.outfit,'field');
  renderStages();assert.equal($('stageGrid').children[1].disabled,true);
  $('start').onclick();assert.equal(mode,'playing');assert.equal(music,true);updateMusic();assert(musicBus);let count=musicNodes.length;updateMusic();assert.equal(musicNodes.length,count);draw();assert.equal(VIEW.w,1000);assert.equal(VIEW.texture.width,512);assert.equal(VIEW.sprites.enemy.width,576);
+ assert.equal(VIEW.enemyFrames.length,4);for(const outfit of ['field','padded','tactical']){profile.outfit=outfit;for(const hair of ['short','long','hood']){profile.hair=hair;characterUI();draw()}}persist();assert.equal(JSON.parse(localStorage.getItem(KEY)).profile.outfit,'tactical');
  const clearStage=()=>{world.relics.forEach(r=>r.taken=true);world.player={...world.exit};world.enemy={x:1.5,y:1.5,state:'patrol',target:null,timer:0};tick(0)};
  clearStage();assert.equal(best,1);assert.equal(level,2);assert.equal(mode,'won');assert.equal(selectStage(3),false);
  $('start').onclick();world.player.angle=.8;persist();const stageTwo=world;
