@@ -212,7 +212,7 @@ function render3D(){
  let vignette=ctx.createRadialGradient(500,340,180,500,340,670);vignette.addColorStop(0,'#00000000');vignette.addColorStop(1,'#00000070');ctx.fillStyle=vignette;ctx.fillRect(0,0,1000,700);
  // Your customized sleeve and a handheld flashlight stay visible in first person.
  if(player.hidingId)drawWardrobeInterior();
- if(!player.hidingId&&cameraMode==='first'){ctx.save();if(difficulty==='psycho')ctx.globalAlpha=flashlightOn?.7:.035;drawFlashlight(bob);ctx.restore()};
+ if(!gpuRendered&&!player.hidingId&&cameraMode==='first'){ctx.save();if(difficulty==='psycho')ctx.globalAlpha=flashlightOn?.7:.035;drawFlashlight(bob);ctx.restore()};
  ctx.fillStyle='#b0c5a8';ctx.font='11px sans-serif';ctx.fillText(cameraMode==='third'?'THIRD PERSON · V TO SWITCH':'FIRST PERSON · V TO SWITCH',28,53);
  ctx.fillStyle='#dce8c388';ctx.fillRect(497,347,6,6);if(!player.hidingId&&difficulty!=='psycho')drawMiniMap();ctx.fillStyle='#b6c2aa';ctx.font='12px sans-serif';ctx.fillText('STAMINA',28,667);ctx.fillStyle='#29362c';ctx.fillRect(100,658,135,7);ctx.fillStyle=world.stamina>25?'#c6e69a':'#d18766';ctx.fillRect(100,658,world.stamina*1.35,7);ctx.fillStyle='#99ad98';ctx.font='11px sans-serif';ctx.fillText(deviceMode==='phone'?'JOYSTICK TO MOVE · SWIPE TO LOOK':document.pointerLockElement===canvas?'MOUSE LOOK ACTIVE · ESC TO RELEASE':'CLICK TO LOOK · Q / E OR ← / → TO TURN',28,31);if(difficulty==='psycho'){ctx.fillStyle=flashlightOn?'#cfdbc0':'#e2a9ab';ctx.fillText('PSYCHO MODE · '+(flashlightOn?'FLASHLIGHT ON':'PRESS F / TAP LIGHT — FLASHLIGHT OFF'),28,78);}
  if(world.enemy.state==='chase'){ctx.strokeStyle='#e0605566';ctx.lineWidth=14;ctx.strokeRect(7,7,986,686)}
@@ -228,3 +228,11 @@ function getPlayerSprite(){
  return VIEW.playerSprite;
 }
 function drawMiniMap(){let p=world.player,cell=9,r=6,x0=855,y0=40;ctx.fillStyle='#07100dda';ctx.fillRect(x0-10,y0-10,137,145);for(let y=-r;y<=r;y++)for(let x=-r;x<=r;x++){let gx=Math.floor(p.x)+x,gy=Math.floor(p.y)+y;ctx.fillStyle=world.grid[gy]?.[gx]===0?'#33473a':'#142019';ctx.fillRect(x0+(x+r)*cell,y0+(y+r)*cell,cell-1,cell-1)}let px=x0+(r+p.x%1)*cell,py=y0+(r+p.y%1)*cell;ctx.fillStyle=profile.color;ctx.beginPath();ctx.arc(px,py,3,0,7);ctx.fill();ctx.strokeStyle='#e3efc8';ctx.beginPath();ctx.moveTo(px,py);ctx.lineTo(px+Math.cos(p.angle||0)*10,py+Math.sin(p.angle||0)*10);ctx.stroke();ctx.fillStyle='#819c85';ctx.font='9px sans-serif';ctx.fillText('LOCAL MAP',x0,y0+130)}
+
+// Full-resolution, seeded stone detail for the GPU; the lighter fallback stays available.
+function makeDetailedFloorTexture(){
+ const tile=document.createElement('canvas');tile.width=tile.height=512;const c=tile.getContext('2d'),image=c.createImageData(512,512);let seed=19287;const random=()=>{seed=(Math.imul(seed,1664525)+1013904223)>>>0;return seed/4294967296};
+ for(let y=0;y<512;y++)for(let x=0;x<512;x++){const i=(y*512+x)*4,edge=Math.min(x,y,511-x,511-y),cloud=Math.sin(x*.035+Math.sin(y*.025))*Math.cos(y*.019)*9+Math.sin(x*.009+y*.014)*7,grain=(random()-.5)*13,seam=edge<3?-.64:edge<8?-.15:0,base=(102+cloud+grain)*(1+seam);image.data[i]=base*.86;image.data[i+1]=base*.94;image.data[i+2]=base;image.data[i+3]=255;}c.putImageData(image,0,0);
+ c.lineWidth=.7;for(let i=0;i<22;i++){let x=random()*512,y=random()*512;c.strokeStyle=i%3?'#17232642':'#bec6c31d';c.beginPath();c.moveTo(x,y);for(let k=0;k<6;k++){x+=(random()-.5)*22;y+=(random()-.5)*17;c.lineTo(x,y);}c.stroke();}
+ for(let i=0;i<9;i++){const x=random()*512,y=random()*512,r=20+random()*80,g=c.createRadialGradient(x,y,0,x,y,r);g.addColorStop(0,'#0c1a2032');g.addColorStop(1,'#0c1a2000');c.fillStyle=g;c.fillRect(x-r,y-r,r*2,r*2);}return tile;
+}
