@@ -1,7 +1,8 @@
 /* Detailed vector characters, drawn at high resolution without image downloads. */
 function drawSurvivor(c,x,y,scale){
  c.save();c.translate(x,y);c.scale(scale,scale);
- const coat=profile.color,skin=profile.skin,outfit=profile.outfit||'field';
+ const coat=profile.color,skin=profile.skin,outfit=profile.outfit||'field',female=profile.gender==='female';
+ c.scale(female?.94:1,1);
  const shadow=c.createRadialGradient(0,78,1,0,78,40);shadow.addColorStop(0,'#00000088');shadow.addColorStop(1,'#00000000');c.fillStyle=shadow;c.fillRect(-45,66,90,26);
  // Boots, trouser folds, and a fitted coat give the survivor human proportions.
  for(const side of [-1,1]){
@@ -18,13 +19,14 @@ function drawSurvivor(c,x,y,scale){
  c.fillStyle='#182f25';c.fillRect(-1,-34,2,67);c.strokeStyle='#d3ddbd88';c.lineWidth=.7;c.beginPath();c.moveTo(1,-31);c.lineTo(1,31);c.stroke();c.fillStyle='#a2ac96';c.fillRect(1,-13,2,4);
  // Neck, collar, ears, facial shading, and individual hair strands.
  c.fillStyle=skin;c.beginPath();c.roundRect(-9,-56,18,17,5);c.fill();c.fillStyle='#4b393033';c.fillRect(-9,-51,18,4);c.fillStyle=coat;c.beginPath();c.moveTo(-22,-43);c.lineTo(-10,-51);c.lineTo(0,-36);c.lineTo(10,-51);c.lineTo(22,-43);c.lineTo(12,-31);c.lineTo(0,-36);c.lineTo(-12,-31);c.closePath();c.fill();
+ c.save();c.translate(0,-65);c.scale(female?.92:1,female?.97:1);c.translate(0,65);
  if(profile.hair==='long'){c.fillStyle='#251e1d';c.beginPath();c.ellipse(0,-67,24,34,0,0,7);c.fill();c.fillRect(-23,-68,46,27)}
  const face=c.createRadialGradient(-6,-73,1,0,-65,28);face.addColorStop(0,skin);face.addColorStop(.7,skin);face.addColorStop(1,'#765444');c.fillStyle=face;for(const side of [-1,1]){c.beginPath();c.ellipse(side*18,-66,4,7,side*.15,0,7);c.fill()}c.beginPath();c.moveTo(-17,-78);c.bezierCurveTo(-22,-59,-12,-49,0,-48);c.bezierCurveTo(12,-49,22,-59,17,-78);c.quadraticCurveTo(0,-91,-17,-78);c.fill();
  c.strokeStyle='#543b3266';c.lineWidth=.8;c.beginPath();c.moveTo(0,-68);c.lineTo(-2,-60);c.lineTo(2,-59);c.moveTo(-4,-54);c.quadraticCurveTo(0,-52,5,-54);c.stroke();
  for(const side of [-1,1]){c.fillStyle='#f0e7d2';c.beginPath();c.ellipse(side*8,-68,4.5,1.8,side*.05,0,7);c.fill();c.fillStyle='#302b27';c.beginPath();c.arc(side*8,-68,1.7,0,7);c.fill();c.fillStyle='#ffffffbb';c.fillRect(side*8-.5,-69,1,1);c.strokeStyle='#342924';c.lineWidth=1.2;c.beginPath();c.moveTo(side*4,-73);c.lineTo(side*12,-72);c.stroke()}
  if(profile.hair==='hood'){c.strokeStyle=coat;c.lineWidth=9;c.beginPath();c.ellipse(0,-69,24,29,0,Math.PI*.75,Math.PI*2.25);c.stroke();c.strokeStyle='#21352e';c.lineWidth=1;c.beginPath();c.ellipse(0,-69,28,33,0,Math.PI*.75,Math.PI*2.25);c.stroke()}
  else{const hair=c.createLinearGradient(0,-92,0,-70);hair.addColorStop(0,'#4e3930');hair.addColorStop(1,'#251e1c');c.fillStyle=hair;c.beginPath();c.moveTo(-18,-69);c.bezierCurveTo(-30,-97,11,-100,21,-79);c.lineTo(19,-64);c.lineTo(14,-78);c.quadraticCurveTo(0,-75,-9,-81);c.lineTo(-17,-63);c.closePath();c.fill();c.strokeStyle='#91745c66';c.lineWidth=.7;for(let i=0;i<6;i++){c.beginPath();c.moveTo(-16+i*6,-84);c.quadraticCurveTo(-8+i*5,-94,9+i*2,-82);c.stroke()}if(profile.hair==='long'){c.strokeStyle='#6b4b3877';for(const side of [-1,1])for(let i=0;i<3;i++){c.beginPath();c.moveTo(side*(18+i),-75);c.quadraticCurveTo(side*(24+i),-58,side*(20+i),-38);c.stroke()}}}
- c.restore();
+ c.restore();c.restore();
 }
 function drawShadowEntity(c,phase=0){
  c.save();const sway=Math.sin(phase)*2;
