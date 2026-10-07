@@ -9,6 +9,8 @@ function initView(){
   enemy:sprite(c=>drawShadowEntity(c,0)),
   door:sprite(c=>{c.fillStyle='#708471';c.fillRect(38,23,116,233);c.fillStyle='#182b23';c.fillRect(47,33,98,223);c.strokeStyle='#4f6454';c.lineWidth=3;c.strokeRect(56,49,79,82);c.strokeRect(56,145,79,92);c.fillStyle='#d5c18b';c.beginPath();c.arc(126,143,4,0,7);c.fill();c.fillStyle='#c6e69a';c.font='bold 17px sans-serif';c.textAlign='center';c.fillText('EXIT',96,18)})
  };enhanceSprites();VIEW.enemyFrames=[VIEW.sprites.enemy,...[1.5,3,4.5].map(phase=>sprite(c=>drawShadowEntity(c,phase)))];
+ VIEW.enemyWalkFrames=Array.from({length:12},(_,i)=>sprite(c=>drawShadowEntity(c,i*Math.PI/6,1,false)));
+ VIEW.enemyRunFrames=Array.from({length:12},(_,i)=>sprite(c=>drawShadowEntity(c,i*Math.PI/6,1,true)));
 }
 function castRay(p,rx,ry){
  let x=Math.floor(p.x),y=Math.floor(p.y),ddx=Math.abs(1/rx),ddy=Math.abs(1/ry),sx=rx<0?-1:1,sy=ry<0?-1:1;
@@ -39,7 +41,7 @@ function makeFloorTexture(){
 }
 function drawSurfaces(p,dir,plane,horizon){
  const W=VIEW.w/2,H=VIEW.h/2,d=VIEW.floorImage.data,tex=VIEW.floorTexture;horizon/=2;
- for(let y=0;y<H;y++){const floor=y>horizon,depth=Math.min(80,H*.5/Math.max(.5,Math.abs(y-horizon))),stepX=depth*plane.x*2/W,stepY=depth*plane.y*2/W;let fx=p.x+depth*(dir.x-plane.x),fy=p.y+depth*(dir.y-plane.y);
+ for(let y=0;y<H;y++){const floor=y>horizon,eye=floor?p.height:1-p.height,depth=Math.min(80,H*eye/Math.max(.5,Math.abs(y-horizon))),stepX=depth*plane.x*2/W,stepY=depth*plane.y*2/W;let fx=p.x+depth*(dir.x-plane.x),fy=p.y+depth*(dir.y-plane.y);
   for(let x=0;x<W;x++){const u=fx-Math.floor(fx),v=fy-Math.floor(fy),camera=2*x/W-1,beam=Math.exp(-camera*camera*2.8),light=(.26+.67*beam)/(1+depth*.13),ix=Math.floor(u*128),iy=Math.floor(v*128),ti=(iy*128+ix)*4;let r,g,b;
    if(floor){const alternate=(Math.floor(fx)+Math.floor(fy))&1,shade=alternate?.89:1;r=tex[ti]*light*shade;g=tex[ti+1]*light*shade;b=tex[ti+2]*light*shade}
    else{const seam=u<.016||v<.02,fixture=(Math.floor(fx)+Math.floor(fy))%5===0&&u>.27&&u<.73&&v>.43&&v<.57&&world.grid[Math.floor(fy)]?.[Math.floor(fx)]===0;const shade=seam?15:43+(Math.floor(u*64)%7)*.4;r=fixture?167:shade*light;g=fixture?186:shade*light*1.1;b=fixture?169:shade*light*1.13}
@@ -61,18 +63,32 @@ function drawFlashlight(bob){
 function render3D(){
  if(!VIEW.buffer)initView();const c=VIEW.context,W=VIEW.w,H=VIEW.h;
  if(!world){let g=ctx.createLinearGradient(0,0,0,700);g.addColorStop(0,'#080d0c');g.addColorStop(1,'#26352c');ctx.fillStyle=g;ctx.fillRect(0,0,1000,700);ctx.strokeStyle='#47604a';for(let i=0;i<7;i++){let inset=80+i*55;ctx.strokeRect(inset,inset*.6,1000-2*inset,700-inset*1.2)}return}
- let p=world.player,angle=p.angle||0,dir={x:Math.cos(angle),y:Math.sin(angle)},plane={x:-dir.y*VIEW.fov,y:dir.x*VIEW.fov};
- let walking=mode==='playing'&&(keys.w||keys.s||keys.a||keys.d||keys.arrowup||keys.arrowdown),bob=walking?Math.sin(world.time*11)*(keys.shift?4:2):0,horizon=H/2+bob;
+ let player=world.player,p=getCameraPose(),angle=p.angle||0,dir={x:Math.cos(angle),y:Math.sin(angle)},plane={x:-dir.y*VIEW.fov,y:dir.x*VIEW.fov};
+ let walking=mode==='playing'&&player.motion>0,bob=walking?Math.sin((player.gaitPhase||0)*2)*(player.running?5:2)*(cameraMode==='third'?.35:1):0,horizon=H*p.horizonRatio+bob;
  drawSurfaces(p,dir,plane,horizon);
  const z=new Float32Array(W);
- for(let x=0;x<W;x++){let camera=2*x/W-1,ray=castRay(p,dir.x+plane.x*camera,dir.y+plane.y*camera);z[x]=ray.depth;let height=H/ray.depth,top=horizon-height/2;c.drawImage(VIEW.texture,Math.floor(ray.u*511),0,1,512,x,top,1,height);let beam=Math.exp(-camera*camera*3),shade=Math.min(.94,.08+ray.depth*.052+(ray.side?.10:0)+(1-beam)*.24);c.fillStyle=`rgba(4,9,11,${shade})`;c.fillRect(x,top,1,height);c.fillStyle=`rgba(0,0,0,${Math.min(.72,.25+ray.depth*.024)})`;c.fillRect(x,top+height*.96,1,height*.04);if((ray.x+ray.y)%4===0){c.fillStyle=`rgba(174,208,183,${Math.max(.02,.24-ray.depth*.016)})`;c.fillRect(x,top+height*.16,1,height*.004)}}
- let objects=[{...world.exit,type:'door'},...world.relics.filter(r=>!r.taken).map(r=>({...r,type:'relic'})),{...world.enemy,type:'enemy'}].map(o=>({...o,...projectObject(o,p,dir,plane)})).filter(o=>o.depth>.08).sort((a,b)=>b.depth-a.depth);
- for(let o of objects){let height=H/o.depth*(o.type==='relic'?.48:o.type==='enemy'?1.25:.94),width=height*.75,screen=W/2*(1+o.side/o.depth),bottom=horizon+H/(2*o.depth),top=bottom-height;if(o.type==='relic')top=horizon-height/2+Math.sin(world.time*3)*4/o.depth;let left=screen-width/2,right=screen+width/2;if(right<0||left>W)continue;let sprite=o.type==='enemy'?VIEW.enemyFrames[Math.floor(world.time*5)%4]:VIEW.sprites[o.type];c.globalAlpha=Math.max(.3,1-o.depth/18);for(let x=Math.max(0,Math.floor(left));x<Math.min(W,right);x++)if(o.depth<z[x]){let u=Math.max(0,Math.min(sprite.width-1,Math.floor((x-left)/width*sprite.width)));c.drawImage(sprite,u,0,1,sprite.height,x,top,1,height)}c.globalAlpha=1}
+ for(let x=0;x<W;x++){let camera=2*x/W-1,ray=castRay(p,dir.x+plane.x*camera,dir.y+plane.y*camera);z[x]=ray.depth;let height=H/ray.depth,top=horizon-height*(1-p.height);c.drawImage(VIEW.texture,Math.floor(ray.u*511),0,1,512,x,top,1,height);let beam=Math.exp(-camera*camera*3),shade=Math.min(.94,.08+ray.depth*.052+(ray.side?.10:0)+(1-beam)*.24);c.fillStyle=`rgba(4,9,11,${shade})`;c.fillRect(x,top,1,height);c.fillStyle=`rgba(0,0,0,${Math.min(.72,.25+ray.depth*.024)})`;c.fillRect(x,top+height*.96,1,height*.04);if((ray.x+ray.y)%4===0){c.fillStyle=`rgba(174,208,183,${Math.max(.02,.24-ray.depth*.016)})`;c.fillRect(x,top+height*.16,1,height*.004)}}
+ let items=[{...world.exit,type:'door'},...world.relics.filter(r=>!r.taken).map(r=>({...r,type:'relic'})),{...world.enemy,type:'enemy'}];
+ if(cameraMode==='third'&&p.distance>=.42)items.push({...player,type:'player'});
+ let objects=items.map(o=>({...o,...projectObject(o,p,dir,plane)})).filter(o=>o.depth>.08).sort((a,b)=>b.depth-a.depth);
+ for(let o of objects){let height=H/o.depth*(o.type==='relic'?.48:o.type==='enemy'?1.04:o.type==='player'?.88:.94),width=height*.75,screen=W/2*(1+o.side/o.depth),bottom=horizon+H*p.height/o.depth,top=bottom-height;if(o.type==='relic')top=horizon-height/2+Math.sin(world.time*3)*4/o.depth;let left=screen-width/2,right=screen+width/2;if(right<0||left>W)continue;let sprite=o.type==='enemy'?getEnemySprite(o):o.type==='player'?getPlayerSprite():VIEW.sprites[o.type];c.globalAlpha=o.type==='player'?1:Math.max(.3,1-o.depth/18);for(let x=Math.max(0,Math.floor(left));x<Math.min(W,right);x++)if(o.depth<z[x]){let u=Math.max(0,Math.min(sprite.width-1,Math.floor((x-left)/width*sprite.width)));c.drawImage(sprite,u,0,1,sprite.height,x,top,1,height)}c.globalAlpha=1}
  ctx.imageSmoothingEnabled=true;ctx.drawImage(VIEW.buffer,0,0,1000,700);
+ if(cameraMode==='third'&&p.distance<.42){ctx.save();ctx.translate(500-96*2.7,350-35*2.7);ctx.scale(2.7,2.7);drawSurvivorBack(ctx,player.gaitPhase||0,walking?1:0,player.running);ctx.restore()}
  let vignette=ctx.createRadialGradient(500,340,180,500,340,670);vignette.addColorStop(0,'#00000000');vignette.addColorStop(1,'#00000070');ctx.fillStyle=vignette;ctx.fillRect(0,0,1000,700);
  // Your customized sleeve and a handheld flashlight stay visible in first person.
- drawFlashlight(bob);
+ if(cameraMode==='first')drawFlashlight(bob);
+ ctx.fillStyle='#b0c5a8';ctx.font='11px sans-serif';ctx.fillText(cameraMode==='third'?'THIRD PERSON · V TO SWITCH':'FIRST PERSON · V TO SWITCH',28,53);
  ctx.fillStyle='#dce8c388';ctx.fillRect(497,347,6,6);drawMiniMap();ctx.fillStyle='#b6c2aa';ctx.font='12px sans-serif';ctx.fillText('STAMINA',28,667);ctx.fillStyle='#29362c';ctx.fillRect(100,658,135,7);ctx.fillStyle=world.stamina>25?'#c6e69a':'#d18766';ctx.fillRect(100,658,world.stamina*1.35,7);ctx.fillStyle='#99ad98';ctx.font='11px sans-serif';ctx.fillText(document.pointerLockElement===canvas?'MOUSE LOOK ACTIVE · ESC TO RELEASE':'CLICK TO LOOK · Q / E OR ← / → TO TURN',28,31);
  if(world.enemy.state==='chase'){ctx.strokeStyle='#e0605566';ctx.lineWidth=14;ctx.strokeRect(7,7,986,686)}
+}
+function getEnemySprite(enemy){
+ if(enemy.motion>0){const frames=enemy.running?VIEW.enemyRunFrames:VIEW.enemyWalkFrames;return frames[Math.floor((enemy.gaitPhase||0)*frames.length/(Math.PI*2))%frames.length]}
+ return VIEW.enemyFrames[Math.floor(world.time*2)%4];
+}
+function getPlayerSprite(){
+ if(!VIEW.playerSprite){VIEW.playerSprite=document.createElement('canvas');VIEW.playerSprite.width=576;VIEW.playerSprite.height=768}
+ const p=world.player,moving=mode==='playing'&&p.motion>0,phase=moving?p.gaitPhase||0:0,key=[profile.color,profile.skin,profile.gender,profile.outfit,profile.hair,Math.floor(phase*12/Math.PI),moving,p.running].join('|');
+ if(key!==VIEW.playerPoseKey){const c=VIEW.playerSprite.getContext('2d');c.setTransform(1,0,0,1,0,0);c.clearRect(0,0,576,768);c.save();c.scale(3,3);drawSurvivorBack(c,phase,moving?1:0,p.running);c.restore();VIEW.playerPoseKey=key}
+ return VIEW.playerSprite;
 }
 function drawMiniMap(){let p=world.player,cell=9,r=6,x0=855,y0=40;ctx.fillStyle='#07100dda';ctx.fillRect(x0-10,y0-10,137,145);for(let y=-r;y<=r;y++)for(let x=-r;x<=r;x++){let gx=Math.floor(p.x)+x,gy=Math.floor(p.y)+y;ctx.fillStyle=world.grid[gy]?.[gx]===0?'#33473a':'#142019';ctx.fillRect(x0+(x+r)*cell,y0+(y+r)*cell,cell-1,cell-1)}let px=x0+(r+p.x%1)*cell,py=y0+(r+p.y%1)*cell;ctx.fillStyle=profile.color;ctx.beginPath();ctx.arc(px,py,3,0,7);ctx.fill();ctx.strokeStyle='#e3efc8';ctx.beginPath();ctx.moveTo(px,py);ctx.lineTo(px+Math.cos(p.angle||0)*10,py+Math.sin(p.angle||0)*10);ctx.stroke();ctx.fillStyle='#819c85';ctx.font='9px sans-serif';ctx.fillText('LOCAL MAP',x0,y0+130)}

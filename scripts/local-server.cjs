@@ -1,7 +1,7 @@
 // Local-only server: no packages or Python installation required.
 const http=require('node:http'),fs=require('node:fs'),path=require('node:path');
 const root=path.resolve(__dirname,'..');
-const assets=new Map([['/','index.html'],['/index.html','index.html'],['/style.css','style.css'],['/characters.js','characters.js'],['/game.js','game.js'],['/renderer.js','renderer.js'],['/ambience.js','ambience.js']]);
+const assets=new Map([['/','index.html'],['/index.html','index.html'],['/style.css','style.css'],['/characters.js','characters.js'],['/motion.js','motion.js'],['/game.js','game.js'],['/renderer.js','renderer.js'],['/ambience.js','ambience.js']]);
 const types={'.html':'text/html; charset=utf-8','.css':'text/css; charset=utf-8','.js':'text/javascript; charset=utf-8'};
 const server=http.createServer((req,res)=>{
  if(!['GET','HEAD'].includes(req.method)){res.writeHead(405,{Allow:'GET, HEAD'});res.end();return}

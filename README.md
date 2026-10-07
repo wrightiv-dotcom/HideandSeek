@@ -35,6 +35,8 @@ python3 -m http.server 8000
 Keep that terminal open. The forwarded address is `https://YOUR-CODESPACE-NAME-8000.app.github.dev`; use the actual address shown in the Ports tab. Port access stays private by default.
 
 - Explore in a textured first-person 3D view, with a flashlight, depth shading, and a local map.
+- Choose First person or Third person under Your Survivor or Settings, or press V during play. Third person follows behind your customized survivor and pulls forward near walls. Your view choice is saved.
+- The survivor and Slenderman have alternating footfalls, bent knees, and swinging arms. Running uses a stronger, quicker stride. Animation follows distance traveled, so pushing against a wall doesn't trigger walking.
 - WASD moves relative to where you face (A/D strafe). Q/E or left/right arrows turn; up/down arrows walk forward/backward. Click the game for mouse look. Escape releases the mouse and pauses. Hold Shift to sprint, and press Space to pause.
 - Collect every gold relic, then reach the green exit at the far corner of the maze.
 - Walls block Slenderman’s sight. It patrols, chases when it sees you, and searches your last known position. Nearby sprinting attracts it.
