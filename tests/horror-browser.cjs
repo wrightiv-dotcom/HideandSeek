@@ -2,6 +2,15 @@
 const assert=require('node:assert/strict'),fs=require('node:fs');
 const {chromium}=require('../.tools/browser/node_modules/playwright');
 const url=process.env.GAME_URL||'http://127.0.0.1:8001';
+async function enterStage(page,n=1){
+ assert(await page.locator('#stageChoice').isVisible());assert.equal(await page.evaluate(()=>mode),'home');
+ assert(await page.locator('#titleStageGrid button').last().isDisabled());
+ await page.locator('#titleStageGrid button').nth(n-1).click();assert(await page.locator('#storyChoice').isVisible());
+ assert.equal(await page.evaluate(()=>mode),'home');
+ await page.waitForTimeout(1200);await page.screenshot({path:'.tools/qa/story-'+(await page.evaluate(()=>deviceMode))+'.png'});
+ for(let i=0;i<3;i++){assert.equal(await page.locator('#storyProgress').textContent(),(i+1)+' / 3');assert.equal(await page.evaluate(()=>mode),'home');await page.locator('#storyContinue').click()}
+ assert.equal(await page.evaluate(()=>mode),'playing');
+}
 (async()=>{
  const browser=await chromium.launch({headless:true,executablePath:process.env.BROWSER_PATH||'C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe'});
  const errors=[];const desktop=await browser.newContext({viewport:{width:1360,height:1000}});const page=await desktop.newPage();page.on('pageerror',e=>errors.push(e.message));
@@ -10,20 +19,20 @@ const url=process.env.GAME_URL||'http://127.0.0.1:8001';
  assert(await page.locator('#titleScreen').isVisible());assert.equal((await page.request.get(url+'/assets/haunted-house.png')).status(),200);
  await page.screenshot({path:'.tools/qa/title-desktop.png'});
  await page.locator('#titleAudio').click();await page.waitForTimeout(100);assert.equal(await page.evaluate(()=>audio.state),'running');assert(await page.evaluate(()=>!!musicBus));
- await page.locator('#titlePlay').click();await page.locator('#chooseComputer').click();await page.locator('#chooseNormal').click();
+ await page.locator('#titlePlay').click();await page.locator('#chooseComputer').click();await page.locator('#chooseNormal').click();await page.waitForTimeout(1200);await page.screenshot({path:'.tools/qa/stages-desktop.png'});await enterStage(page);
  assert.equal(await page.evaluate(()=>mode),'playing');assert.equal(await page.evaluate(()=>difficulty),'normal');assert(await page.locator('#titleScreen').isHidden());
  await page.screenshot({path:'.tools/qa/normal-desktop.png'});
  await page.keyboard.press('f');assert.equal(await page.evaluate(()=>flashlightOn),false);await page.keyboard.press('f');
  await page.evaluate(()=>{best=1;persist()});
- await page.locator('#settingsButton').click();await page.locator('#settingsHome').click();assert(await page.locator('#titleScreen').isVisible());
- await page.locator('#titlePlay').click();await page.locator('#chooseComputer').click();await page.locator('#choosePsycho').click();assert.equal(await page.evaluate(()=>best),0);
+ await page.keyboard.press('Space');assert.equal(await page.evaluate(()=>mode),'paused');const pausedPosition=await page.evaluate(()=>({x:world.player.x,y:world.player.y}));await page.getByRole('button',{name:'Back to home',exact:true}).click();assert.deepEqual(await page.evaluate(()=>({x:world.player.x,y:world.player.y})),pausedPosition);assert(await page.locator('#titleScreen').isVisible());
+ await page.locator('#titlePlay').click();await page.locator('#chooseComputer').click();await page.locator('#choosePsycho').click();await enterStage(page);assert.equal(await page.evaluate(()=>best),0);
  assert.equal(await page.evaluate(()=>KEY),'hollow-house-psycho-v1');
- await page.evaluate(()=>{pause();chooseDifficulty('normal')});assert.equal(await page.evaluate(()=>best),1);
+ await page.evaluate(()=>{pause();chooseDifficulty('normal')});await enterStage(page);assert.equal(await page.evaluate(()=>best),1);
  await page.locator('#fullscreenButton').click();await page.waitForTimeout(200);assert.equal(await page.locator('#fullscreenButton').textContent(),'Exit fullscreen');
  await page.locator('#fullscreenButton').click();assert.equal(await page.locator('#fullscreenButton').textContent(),'Fullscreen');
  const phoneContext=await browser.newContext({viewport:{width:390,height:844},isMobile:true,hasTouch:true,deviceScaleFactor:1});const phone=await phoneContext.newPage();phone.on('pageerror',e=>errors.push(e.message));
  await phone.goto(url);await phone.waitForTimeout(4500);await phone.screenshot({path:'.tools/qa/title-phone.png'});
- await phone.locator('#titlePlay').click();await phone.locator('#choosePhone').click();await phone.locator('#choosePsycho').click();
+ await phone.locator('#titlePlay').click();await phone.locator('#choosePhone').click();await phone.locator('#choosePsycho').click();await phone.waitForTimeout(1200);await phone.screenshot({path:'.tools/qa/stages-phone.png'});await enterStage(phone);
  assert(await phone.locator('#phoneControls').isVisible());assert.equal(await phone.evaluate(()=>flashlightOn),false);assert.equal(await phone.evaluate(()=>sound),true);
  const brightness=()=>phone.evaluate(()=>{let sum=0;const data=ctx.getImageData(200,130,500,340).data;for(let i=0;i<data.length;i+=4)sum+=data[i]+data[i+1]+data[i+2];return sum});
  await phone.waitForTimeout(200);const dark=await brightness();await phone.screenshot({path:'.tools/qa/psycho-dark-phone.png'});
@@ -46,6 +55,6 @@ const url=process.env.GAME_URL||'http://127.0.0.1:8001';
  assert.equal(await phone.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true);
  await phone.locator('#phonePause').click();assert.equal(await phone.evaluate(()=>mode),'paused');assert.equal(await phone.evaluate(()=>joystickInput.forward),0);assert(await phone.locator('#phoneControls').isHidden());
  assert.equal(await phone.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true);
- assert.deepEqual(errors,[]);console.log('PASS: title image and audio, device/mode flow, isolated saves, fullscreen, phone joystick/swipe/sprint/pause, blackout/flashlight, harmless scares, scream mute cleanup, and responsive width.');
+ await phone.getByRole('button',{name:'Back to home',exact:true}).click();assert(await phone.locator('#titleWelcome').isVisible());assert.equal(await phone.evaluate(()=>mode),'home');assert.deepEqual(errors,[]);console.log('PASS: title image and audio, themed stage choices, click-through story gating, pause-to-home save, device/mode flow, isolated saves, fullscreen, phone joystick/swipe/sprint/pause, blackout/flashlight, harmless scares, scream mute cleanup, and responsive width.');
  await browser.close();
 })().catch(e=>{console.error(e);process.exit(1)});

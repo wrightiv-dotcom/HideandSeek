@@ -6,7 +6,9 @@ The GitHub Pages version works without a running terminal or Codespace. Saved pr
 
 Open `index.html` in a modern browser to play. No install or build is needed.
 
-The main menu fades in over a haunted-house picture with a dripping blood title. Select **Play**, choose **Computer** or **Phone**, then choose **Normal mode** or **Psycho mode**. Music starts after your first interaction; the title-screen music button and Settings control audio.
+The main menu fades in over a haunted-house picture with a dripping blood title. Select **Play**, choose **Computer** or **Phone**, choose **Normal mode** or **Psycho mode**, then pick a stage from the haunted door selector. Click through three story screens about traveling through the woods, blacking out, and waking in a maze before entering the stage. Music starts after your first interaction; the title-screen music button and Settings control audio.
+
+The pause menu includes **Back to home**. It saves your run and returns to the haunted title screen; select the same mode and stage to resume your position and collected relics.
 
 - **Normal mode** keeps the original survival gameplay, with portraits of Slenderman, recessed closets, wooden wardrobes, and aged wall panels throughout the maze.
 - **Psycho mode** starts in blackout darkness. Press **F** or tap **Light** to toggle the flashlight. Blood, cobwebs, brief harmless scares, and positional synthesized screams add to the atmosphere. Sound effects start when entering this mode and can be muted in Settings. Each mode saves its own stages and progress.
