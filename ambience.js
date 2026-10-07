@@ -1,7 +1,7 @@
 /* Procedural ambient soundtrack and a short synthesized catch sting. */
 let music=true,musicBus=null,musicNodes=[],musicNextNote=0;
 const stingVoices=new Set();
-function unlockAudio(){try{audio ||=new(window.AudioContext||window.webkitAudioContext)();audio.resume().catch(()=>{})}catch{}}
+function unlockAudio(){try{audio ||=new(window.AudioContext||window.webkitAudioContext)();audio.resume().then(()=>{if(typeof syncTitleAudio==='function')syncTitleAudio()}).catch(()=>{})}catch{}}
 function stopMusic(){if(!musicBus)return;for(const node of musicNodes){try{node.stop()}catch{}node.disconnect()}musicNodes=[];musicBus.disconnect();musicBus=null;musicNextNote=0}
 function startMusic(){
  if(musicBus||!audio||audio.state!=='running')return;

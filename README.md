@@ -6,6 +6,15 @@ The GitHub Pages version works without a running terminal or Codespace. Saved pr
 
 Open `index.html` in a modern browser to play. No install or build is needed.
 
+The main menu fades in over a haunted-house picture with a dripping blood title. Select **Play**, choose **Computer** or **Phone**, then choose **Normal mode** or **Psycho mode**. Music starts after your first interaction; the title-screen music button and Settings control audio.
+
+- **Normal mode** keeps the original survival gameplay, with portraits of Slenderman, recessed closets, wooden wardrobes, and aged wall panels throughout the maze.
+- **Psycho mode** starts in blackout darkness. Press **F** or tap **Light** to toggle the flashlight. Blood, cobwebs, brief harmless scares, and positional synthesized screams add to the atmosphere. Sound effects start when entering this mode and can be muted in Settings. Each mode saves its own stages and progress.
+- **Phone controls:** drag the joystick to walk or strafe; swipe the scene to look horizontally or vertically. Hold **Hold to run** to sprint, tap **Pause** to stop, and tap **Light** for the flashlight. Portrait and landscape layouts are supported. The header's Controls button switches device controls.
+- **Fullscreen** opens the full-screen website. **Exit fullscreen** returns to the original view; unsupported browsers hide this button.
+
+The haunted-house background is stored in `assets/haunted-house.png` and was made with the built-in image generation tool. Prompt: "A terrifying abandoned Victorian haunted house at night, decaying timber, crooked roof, broken windows with faint red light, heavy ground fog, dead trees, moonlit clouds, dark cinematic photographic realism. Landscape title-screen background with room for overlaid title and buttons; no text, logos, or watermark."
+
 ## Play locally
 
 In Git Bash, run:

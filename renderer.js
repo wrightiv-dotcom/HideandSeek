@@ -2,7 +2,7 @@
 const VIEW={w:1000,h:700,fov:.72,buffer:null,context:null,texture:null,sprites:null,floorImage:null,floorTexture:null,surface:null,surfaceContext:null};
 function initView(){
  VIEW.buffer=document.createElement('canvas');VIEW.buffer.width=VIEW.w;VIEW.buffer.height=VIEW.h;VIEW.context=VIEW.buffer.getContext('2d');
- VIEW.texture=makeStoneTexture();VIEW.floorTexture=makeFloorTexture();VIEW.surface=document.createElement('canvas');VIEW.surface.width=VIEW.w/2;VIEW.surface.height=VIEW.h/2;VIEW.surfaceContext=VIEW.surface.getContext('2d');VIEW.floorImage=VIEW.surfaceContext.createImageData(VIEW.w/2,VIEW.h/2);
+ VIEW.texture=makeStoneTexture();VIEW.normalWalls=makeDecorTextures(false);VIEW.psychoWalls=makeDecorTextures(true);VIEW.floorTexture=makeFloorTexture();VIEW.surface=document.createElement('canvas');VIEW.surface.width=VIEW.w/2;VIEW.surface.height=VIEW.h/2;VIEW.surfaceContext=VIEW.surface.getContext('2d');VIEW.floorImage=VIEW.surfaceContext.createImageData(VIEW.w/2,VIEW.h/2);
  function sprite(draw){let c=document.createElement('canvas');c.width=576;c.height=768;const paint=c.getContext('2d');paint.scale(3,3);draw(paint);return c}
  VIEW.sprites={
   relic:sprite(c=>{c.translate(96,134);let g=c.createRadialGradient(0,0,0,0,0,75);g.addColorStop(0,'#f1c86466');g.addColorStop(1,'#f1c86400');c.fillStyle=g;c.fillRect(-90,-100,180,200);c.shadowColor='#ffce66';c.shadowBlur=20;c.fillStyle='#f7db8b';c.beginPath();c.moveTo(0,-46);c.lineTo(24,0);c.lineTo(0,42);c.lineTo(-24,0);c.closePath();c.fill();c.shadowBlur=0;c.fillStyle='#b28139';c.beginPath();c.moveTo(0,-46);c.lineTo(24,0);c.lineTo(0,42);c.closePath();c.fill();c.strokeStyle='#ffefbf';c.beginPath();c.moveTo(0,-46);c.lineTo(0,42);c.stroke()}),
@@ -35,6 +35,45 @@ function makeStoneTexture(){
  for(let x=20;x<512;x+=64){c.fillStyle='#101b1d';c.beginPath();c.arc(x,476,3,0,Math.PI*2);c.fill();c.fillStyle='#a0aaa0';c.fillRect(x-1,474,2,1)}
  c.fillStyle='#162325';c.fillRect(0,47,512,8);c.fillStyle='#8b979166';c.fillRect(0,48,512,2);return canvas;
 }
+function makeDecorTextures(psycho){
+ return Array.from({length:7},(_,kind)=>{
+  const texture=document.createElement('canvas');texture.width=texture.height=512;const c=texture.getContext('2d');c.drawImage(VIEW.texture,0,0);
+  if(kind===1||kind===5){
+   c.fillStyle=kind===1?'#4b4034':'#454440';c.fillRect(0,0,512,453);
+   for(let x=0;x<512;x+=32){c.fillStyle=x%64?'#645a4233':'#10151466';c.fillRect(x,0,2,453);c.strokeStyle='#a39b7244';c.strokeRect(x+5,14,22,423)}
+   c.fillStyle='#291f1c';c.fillRect(0,410,512,45);c.fillStyle='#88735a';c.fillRect(0,405,512,5);
+  }
+  if(kind===2||kind===6){
+   c.fillStyle='#171a16';c.fillRect(130,70,252,305);c.fillStyle='#80613c';c.fillRect(138,78,236,288);c.fillStyle='#30251e';c.fillRect(146,86,220,272);c.fillStyle='#172124';c.fillRect(158,98,196,247);
+   const haze=c.createRadialGradient(256,173,10,256,218,126);haze.addColorStop(0,'#637069');haze.addColorStop(1,'#111714');c.fillStyle=haze;c.fillRect(159,99,194,245);
+   c.fillStyle='#070908';c.beginPath();c.moveTo(230,179);c.lineTo(278,179);c.lineTo(299,329);c.lineTo(215,329);c.closePath();c.fill();
+   c.fillStyle='#d0d0b7';c.beginPath();c.ellipse(256,149,18,31,0,0,Math.PI*2);c.fill();c.fillStyle='#530810';c.fillRect(245,146,5,2);c.fillRect(264,146,5,2);c.strokeStyle='#070908';c.lineWidth=8;
+   for(const side of [-1,1]){c.beginPath();c.moveTo(256+side*20,194);c.lineTo(256+side*53,271);c.lineTo(256+side*65,328);c.stroke();c.lineWidth=3;for(let i=0;i<3;i++){c.beginPath();c.moveTo(256+side*15,218+i*20);c.quadraticCurveTo(256+side*94,170+i*20,256+side*80,109+i*25);c.stroke()}}
+   c.strokeStyle='#b5995955';c.lineWidth=2;c.strokeRect(142,82,228,280);c.fillStyle='#a49677';c.font='10px serif';c.textAlign='center';c.fillText('THE ONE IN THE HALLS',256,358);
+  }
+  if(kind===3||kind===4){
+   const left=kind===3?48:84,width=kind===3?416:344;c.fillStyle='#0b1110';c.fillRect(left-8,33,width+16,423);
+   const wood=c.createLinearGradient(left,0,left+width,0);wood.addColorStop(0,'#32291e');wood.addColorStop(.5,'#786047');wood.addColorStop(1,'#30261d');c.fillStyle=wood;c.fillRect(left,43,width,400);
+   c.fillStyle='#99805c';c.fillRect(left-5,34,width+10,13);c.fillStyle='#271e19';c.fillRect(left-5,47,width+10,7);
+   for(let x=left+9;x<left+width;x+=15){c.strokeStyle='#140f0c44';c.lineWidth=1;c.beginPath();c.moveTo(x,53);c.bezierCurveTo(x-5,160,x+7,265,x-2,438);c.stroke()}
+   c.fillStyle='#151513';c.fillRect(254,53,4,390);c.strokeStyle='#9d805855';c.lineWidth=4;
+   for(const x of [left+15,269]){const w=width/2-30;c.strokeRect(x,65,w,152);c.strokeRect(x,246,w,166)}
+   c.fillStyle='#b79d65';for(const x of [244,269]){c.beginPath();c.ellipse(x,235,4,9,0,0,7);c.fill()}
+   if(kind===4){c.fillStyle='#151b17';for(let y=90;y<198;y+=14){c.fillRect(left+30,y,width/2-55,4);c.fillRect(285,y,width/2-55,4)}}
+   c.fillStyle='#131713';c.fillRect(left-4,441,width+8,13);
+  }
+  if(psycho){
+   c.fillStyle='#520916cc';c.beginPath();c.ellipse(155,180,64,36,-.3,0,7);c.fill();c.fillStyle='#850b1ccc';
+   for(let i=0;i<13;i++){const x=103+i*10,y=160+(i%4)*12,length=40+(i*37)%180;c.fillRect(x,y,3+(i%4),length);c.beginPath();c.ellipse(x+2,y+length,3,6,0,0,7);c.fill()}
+   c.fillStyle='#640c15';for(let i=0;i<27;i++){c.beginPath();c.arc(60+(i*67)%350,120+(i*31)%160,1+i%5,0,7);c.fill()}
+   // Spider silk is painted into the wall plane, so it follows perspective.
+   for(const corner of [0,512]){c.strokeStyle='#c9d1c055';c.lineWidth=1.4;for(let i=0;i<7;i++){const angle=i*Math.PI/12;c.beginPath();c.moveTo(corner,0);c.lineTo(corner+(corner===0?1:-1)*Math.cos(angle)*185,Math.sin(angle)*185);c.stroke()}
+    for(let r=30;r<=180;r+=30){c.beginPath();for(let i=0;i<7;i++){const angle=i*Math.PI/12,x=corner+(corner===0?1:-1)*Math.cos(angle)*r,y=Math.sin(angle)*r;i?c.lineTo(x,y):c.moveTo(x,y)}c.stroke()}}
+   c.fillStyle='#0b0a0b';c.beginPath();c.ellipse(439,106,5,8,0,0,7);c.fill();c.strokeStyle='#131012';for(let i=0;i<4;i++)for(const side of [-1,1]){c.beginPath();c.moveTo(439,102+i*3);c.lineTo(439+side*12,97+i*6);c.lineTo(439+side*17,92+i*9);c.stroke()}
+  }
+  return texture;
+ });
+}
 function makeFloorTexture(){
  const tex=document.createElement('canvas');tex.width=tex.height=128;const c=tex.getContext('2d');c.fillStyle='#69726d';c.fillRect(0,0,128,128);c.fillStyle='#303d3c';c.fillRect(0,0,128,3);c.fillRect(0,0,3,128);c.fillStyle='#9ba397';c.fillRect(3,3,124,1);c.fillRect(3,3,1,124);
  let seed=91;const random=()=>{seed=(Math.imul(seed,1664525)+1013904223)>>>0;return seed/4294967296};const image=c.getImageData(0,0,128,128);for(let i=0;i<image.data.length;i+=4){const n=(random()-.5)*12;for(let j=0;j<3;j++)image.data[i+j]+=n}return image.data;
@@ -42,9 +81,9 @@ function makeFloorTexture(){
 function drawSurfaces(p,dir,plane,horizon){
  const W=VIEW.w/2,H=VIEW.h/2,d=VIEW.floorImage.data,tex=VIEW.floorTexture;horizon/=2;
  for(let y=0;y<H;y++){const floor=y>horizon,eye=floor?p.height:1-p.height,depth=Math.min(80,H*eye/Math.max(.5,Math.abs(y-horizon))),stepX=depth*plane.x*2/W,stepY=depth*plane.y*2/W;let fx=p.x+depth*(dir.x-plane.x),fy=p.y+depth*(dir.y-plane.y);
-  for(let x=0;x<W;x++){const u=fx-Math.floor(fx),v=fy-Math.floor(fy),camera=2*x/W-1,beam=Math.exp(-camera*camera*2.8),light=(.26+.67*beam)/(1+depth*.13),ix=Math.floor(u*128),iy=Math.floor(v*128),ti=(iy*128+ix)*4;let r,g,b;
+  for(let x=0;x<W;x++){const u=fx-Math.floor(fx),v=fy-Math.floor(fy),camera=2*x/W-1,beam=Math.exp(-camera*camera*2.8),light=difficulty==='psycho'?(flashlightOn?(.005+.95*Math.exp(-camera*camera*7))/(1+depth*.35):.002):(flashlightOn?(.26+.67*beam)/(1+depth*.13):.13/(1+depth*.18)),ix=Math.floor(u*128),iy=Math.floor(v*128),ti=(iy*128+ix)*4;let r,g,b;
    if(floor){const alternate=(Math.floor(fx)+Math.floor(fy))&1,shade=alternate?.89:1;r=tex[ti]*light*shade;g=tex[ti+1]*light*shade;b=tex[ti+2]*light*shade}
-   else{const seam=u<.016||v<.02,fixture=(Math.floor(fx)+Math.floor(fy))%5===0&&u>.27&&u<.73&&v>.43&&v<.57&&world.grid[Math.floor(fy)]?.[Math.floor(fx)]===0;const shade=seam?15:43+(Math.floor(u*64)%7)*.4;r=fixture?167:shade*light;g=fixture?186:shade*light*1.1;b=fixture?169:shade*light*1.13}
+   else{const seam=u<.016||v<.02,fixture=difficulty!=='psycho'&&(Math.floor(fx)+Math.floor(fy))%5===0&&u>.27&&u<.73&&v>.43&&v<.57&&world.grid[Math.floor(fy)]?.[Math.floor(fx)]===0;const shade=seam?15:43+(Math.floor(u*64)%7)*.4;r=fixture?167:shade*light;g=fixture?186:shade*light*1.1;b=fixture?169:shade*light*1.13}
    const i=(y*W+x)*4;d[i]=r;d[i+1]=g;d[i+2]=b;d[i+3]=255;fx+=stepX;fy+=stepY;
   }
  }VIEW.surfaceContext.putImageData(VIEW.floorImage,0,0);VIEW.context.drawImage(VIEW.surface,0,0,VIEW.w,VIEW.h);
@@ -64,21 +103,21 @@ function render3D(){
  if(!VIEW.buffer)initView();const c=VIEW.context,W=VIEW.w,H=VIEW.h;
  if(!world){let g=ctx.createLinearGradient(0,0,0,700);g.addColorStop(0,'#080d0c');g.addColorStop(1,'#26352c');ctx.fillStyle=g;ctx.fillRect(0,0,1000,700);ctx.strokeStyle='#47604a';for(let i=0;i<7;i++){let inset=80+i*55;ctx.strokeRect(inset,inset*.6,1000-2*inset,700-inset*1.2)}return}
  let player=world.player,p=getCameraPose(),angle=p.angle||0,dir={x:Math.cos(angle),y:Math.sin(angle)},plane={x:-dir.y*VIEW.fov,y:dir.x*VIEW.fov};
- let walking=mode==='playing'&&player.motion>0,bob=walking?Math.sin((player.gaitPhase||0)*2)*(player.running?5:2)*(cameraMode==='third'?.35:1):0,horizon=H*p.horizonRatio+bob;
+ let walking=mode==='playing'&&player.motion>0,bob=walking?Math.sin((player.gaitPhase||0)*2)*(player.running?5:2)*(cameraMode==='third'?.35:1):0,horizon=H*(p.horizonRatio+(player.lookOffset||0))+bob;
  drawSurfaces(p,dir,plane,horizon);
  const z=new Float32Array(W);
- for(let x=0;x<W;x++){let camera=2*x/W-1,ray=castRay(p,dir.x+plane.x*camera,dir.y+plane.y*camera);z[x]=ray.depth;let height=H/ray.depth,top=horizon-height*(1-p.height);c.drawImage(VIEW.texture,Math.floor(ray.u*511),0,1,512,x,top,1,height);let beam=Math.exp(-camera*camera*3),shade=Math.min(.94,.08+ray.depth*.052+(ray.side?.10:0)+(1-beam)*.24);c.fillStyle=`rgba(4,9,11,${shade})`;c.fillRect(x,top,1,height);c.fillStyle=`rgba(0,0,0,${Math.min(.72,.25+ray.depth*.024)})`;c.fillRect(x,top+height*.96,1,height*.04);if((ray.x+ray.y)%4===0){c.fillStyle=`rgba(174,208,183,${Math.max(.02,.24-ray.depth*.016)})`;c.fillRect(x,top+height*.16,1,height*.004)}}
+ for(let x=0;x<W;x++){let camera=2*x/W-1,ray=castRay(p,dir.x+plane.x*camera,dir.y+plane.y*camera);z[x]=ray.depth;let height=H/ray.depth,top=horizon-height*(1-p.height);const walls=difficulty==='psycho'?VIEW.psychoWalls:VIEW.normalWalls,texture=walls[Math.abs(ray.x*17+ray.y*31+ray.side*7)%walls.length];c.drawImage(texture,Math.floor(ray.u*511),0,1,512,x,top,1,height);let beam=Math.exp(-camera*camera*3),shade=difficulty==='psycho'?1-(flashlightOn?Math.max(.004,.92*Math.exp(-camera*camera*7)/(1+ray.depth*.24)):.003):Math.min(.94,.08+ray.depth*.052+(ray.side?.10:0)+(1-beam)*.24+(flashlightOn?0:.48));c.fillStyle=difficulty==='psycho'?`rgba(0,0,0,${shade})`:`rgba(4,9,11,${shade})`;c.fillRect(x,top,1,height);c.fillStyle=`rgba(0,0,0,${Math.min(.72,.25+ray.depth*.024)})`;c.fillRect(x,top+height*.96,1,height*.04);if(difficulty!=='psycho'&&(ray.x+ray.y)%4===0){c.fillStyle=`rgba(174,208,183,${Math.max(.02,.24-ray.depth*.016)})`;c.fillRect(x,top+height*.16,1,height*.004)}}
  let items=[{...world.exit,type:'door'},...world.relics.filter(r=>!r.taken).map(r=>({...r,type:'relic'})),{...world.enemy,type:'enemy'}];
  if(cameraMode==='third'&&p.distance>=.42)items.push({...player,type:'player'});
  let objects=items.map(o=>({...o,...projectObject(o,p,dir,plane)})).filter(o=>o.depth>.08).sort((a,b)=>b.depth-a.depth);
- for(let o of objects){let height=H/o.depth*(o.type==='relic'?.48:o.type==='enemy'?1.04:o.type==='player'?.88:.94),width=height*.75,screen=W/2*(1+o.side/o.depth),bottom=horizon+H*p.height/o.depth,top=bottom-height;if(o.type==='relic')top=horizon-height/2+Math.sin(world.time*3)*4/o.depth;let left=screen-width/2,right=screen+width/2;if(right<0||left>W)continue;let sprite=o.type==='enemy'?getEnemySprite(o):o.type==='player'?getPlayerSprite():VIEW.sprites[o.type];c.globalAlpha=o.type==='player'?1:Math.max(.3,1-o.depth/18);for(let x=Math.max(0,Math.floor(left));x<Math.min(W,right);x++)if(o.depth<z[x]){let u=Math.max(0,Math.min(sprite.width-1,Math.floor((x-left)/width*sprite.width)));c.drawImage(sprite,u,0,1,sprite.height,x,top,1,height)}c.globalAlpha=1}
+ for(let o of objects){let height=H/o.depth*(o.type==='relic'?.48:o.type==='enemy'?1.04:o.type==='player'?.88:.94),width=height*.75,screen=W/2*(1+o.side/o.depth),bottom=horizon+H*p.height/o.depth,top=bottom-height;if(o.type==='relic')top=horizon-height/2+Math.sin(world.time*3)*4/o.depth;let left=screen-width/2,right=screen+width/2;if(right<0||left>W)continue;let sprite=o.type==='enemy'?getEnemySprite(o):o.type==='player'?getPlayerSprite():VIEW.sprites[o.type];c.globalAlpha=(o.type==='player'?1:Math.max(.3,1-o.depth/18))*(difficulty==='psycho'&&o.type!=='relic'?(flashlightOn?Math.max(.02,Math.exp(-Math.pow(o.side/o.depth,2)*7)/(1+o.depth*.14)):.015):1);for(let x=Math.max(0,Math.floor(left));x<Math.min(W,right);x++)if(o.depth<z[x]){let u=Math.max(0,Math.min(sprite.width-1,Math.floor((x-left)/width*sprite.width)));c.drawImage(sprite,u,0,1,sprite.height,x,top,1,height)}c.globalAlpha=1}
  ctx.imageSmoothingEnabled=true;ctx.drawImage(VIEW.buffer,0,0,1000,700);
  if(cameraMode==='third'&&p.distance<.42){ctx.save();ctx.translate(500-96*2.7,350-35*2.7);ctx.scale(2.7,2.7);drawSurvivorBack(ctx,player.gaitPhase||0,walking?1:0,player.running);ctx.restore()}
  let vignette=ctx.createRadialGradient(500,340,180,500,340,670);vignette.addColorStop(0,'#00000000');vignette.addColorStop(1,'#00000070');ctx.fillStyle=vignette;ctx.fillRect(0,0,1000,700);
  // Your customized sleeve and a handheld flashlight stay visible in first person.
- if(cameraMode==='first')drawFlashlight(bob);
+ if(cameraMode==='first'){ctx.save();if(difficulty==='psycho')ctx.globalAlpha=flashlightOn?.7:.035;drawFlashlight(bob);ctx.restore()};
  ctx.fillStyle='#b0c5a8';ctx.font='11px sans-serif';ctx.fillText(cameraMode==='third'?'THIRD PERSON · V TO SWITCH':'FIRST PERSON · V TO SWITCH',28,53);
- ctx.fillStyle='#dce8c388';ctx.fillRect(497,347,6,6);drawMiniMap();ctx.fillStyle='#b6c2aa';ctx.font='12px sans-serif';ctx.fillText('STAMINA',28,667);ctx.fillStyle='#29362c';ctx.fillRect(100,658,135,7);ctx.fillStyle=world.stamina>25?'#c6e69a':'#d18766';ctx.fillRect(100,658,world.stamina*1.35,7);ctx.fillStyle='#99ad98';ctx.font='11px sans-serif';ctx.fillText(document.pointerLockElement===canvas?'MOUSE LOOK ACTIVE · ESC TO RELEASE':'CLICK TO LOOK · Q / E OR ← / → TO TURN',28,31);
+ ctx.fillStyle='#dce8c388';ctx.fillRect(497,347,6,6);if(difficulty!=='psycho')drawMiniMap();ctx.fillStyle='#b6c2aa';ctx.font='12px sans-serif';ctx.fillText('STAMINA',28,667);ctx.fillStyle='#29362c';ctx.fillRect(100,658,135,7);ctx.fillStyle=world.stamina>25?'#c6e69a':'#d18766';ctx.fillRect(100,658,world.stamina*1.35,7);ctx.fillStyle='#99ad98';ctx.font='11px sans-serif';ctx.fillText(deviceMode==='phone'?'JOYSTICK TO MOVE · SWIPE TO LOOK':document.pointerLockElement===canvas?'MOUSE LOOK ACTIVE · ESC TO RELEASE':'CLICK TO LOOK · Q / E OR ← / → TO TURN',28,31);if(difficulty==='psycho'){ctx.fillStyle=flashlightOn?'#cfdbc0':'#e2a9ab';ctx.fillText('PSYCHO MODE · '+(flashlightOn?'FLASHLIGHT ON':'PRESS F / TAP LIGHT — FLASHLIGHT OFF'),28,78);}
  if(world.enemy.state==='chase'){ctx.strokeStyle='#e0605566';ctx.lineWidth=14;ctx.strokeRect(7,7,986,686)}
 }
 function getEnemySprite(enemy){
