@@ -4,7 +4,7 @@ const {chromium}=require('../.tools/browser/node_modules/playwright');
  const browser=await chromium.launch({headless:true,executablePath:process.env.BROWSER_PATH||'C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe'}),page=await browser.newPage({viewport:{width:1360,height:1000}}),errors=[];
  page.on('pageerror',e=>errors.push(e.message));page.on('console',m=>{if(m.type()==='warning'&&m.text().includes('fallback'))errors.push(m.text())});
  await page.goto(process.env.GAME_URL||'http://127.0.0.1:8001');await page.evaluate(()=>{$('start').onclick();mode='paused';$('overlay').classList.add('hidden');draw()});
- assert.equal(await page.evaluate(()=>!!GPU),true);assert.equal(await page.evaluate(()=>GPU.gl.getError()),0);
+ assert.equal(await page.evaluate(()=>!!GPU),true);assert.equal(await page.evaluate(()=>GPU.slenderHead.count>5000&&GPU.slenderSuit.count>4000&&GPU.sleeve.count>3000&&GPU.lapels.count===6&&GPU.shirt.count===3),true);assert.equal(await page.evaluate(()=>GPU.gl.getError()),0);
  const stats=await page.evaluate(()=>{const times=[];for(let i=0;i<8;i++){const start=performance.now();draw();times.push(performance.now()-start)}return {milliseconds:times.sort((a,b)=>a-b)[4],antialias:GPU.gl.getContextAttributes().antialias,vertices:GPU.scene.count}});
  assert(stats.vertices>1000);assert(stats.antialias);
  fs.mkdirSync('.tools/qa',{recursive:true});await page.locator('#game').screenshot({path:'.tools/qa/gpu-normal.png'});

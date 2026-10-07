@@ -71,3 +71,5 @@ Keep that terminal open. The forwarded address is `https://YOUR-CODESPACE-NAME-8
 - Touch direction controls appear on smaller screens. Drag across the game to look around.
 
 Browser storage must be enabled to save. Saves stay in the same browser and page location. The game works offline; fonts fall back to system fonts if unavailable.
+
+Slenderman uses a sculpted pale skull, recessed featureless facial shading, procedural skin mottling, tailored wool suit geometry, satin lapels, a white collar and tie, and articulated pale fingers. Cool directional lighting and subtle rim light emphasize the silhouette; Psycho mode retains its flashlight-only darkness. Desktop GPU rendering scales up to 1800 pixels wide, while phones retain the lighter 800-pixel buffer.
