@@ -8,21 +8,31 @@ function coopId(){return coop.host?0:1;}
 function coopLocal(){return coop.players[coopId()];}
 function coopBindWorld(){const p=coopLocal();if(!p||!coop.floors[p.floor])return;world=coop.floors[p.floor];world.player=p;world.lives=coop.lives;world.stamina=p.stamina;}
 function coopTeammates(){return coop.started&&!coop.ended?coop.players.filter((p,i)=>i!==coopId()&&p.floor===coopLocal()?.floor&&!p.hidingId):[];}
-function coopLeave(){coop.started=false;coop.active=false;stopHeartbeat();stopFootsteps();stopCreaks();stopPictureSounds();stopScreams();coop.connection?.close();coop.peer?.destroy();coop.peer=null;coop.connection=null;coop.ready=false;coop.remoteReady=false;$('start').onclick=solo.start;coop.players=[];coop.floors=[];world=null;mode='home';canvas.style.filter='none';$('settingsHome').textContent='Save & return home';$('coopHud').hidden=true;$('coopInteract').hidden=true;KEY=difficulty==='psycho'?'hollow-house-psycho-v1':'hollow-house-v1';level=1;best=0;stageSaves={};try{const s=JSON.parse(localStorage.getItem(KEY));if(s){level=s.level||1;best=s.best||0;stageSaves=s.stageSaves||{};world=stageSaves[level]||null;}}catch{}updateUI();}
+function coopLeave(){coop.started=false;coop.active=false;stopHeartbeat();stopFootsteps();stopCreaks();stopPictureSounds();stopScreams();coop.connection?.close();coop.peer?.destroy();coop.peer=null;coop.connection=null;coop.code='';coop.remoteProfile=null;$('roomCode').textContent='------';coop.ready=false;coop.remoteReady=false;$('start').onclick=solo.start;coop.players=[];coop.floors=[];world=null;mode='home';canvas.style.filter='none';$('settingsHome').textContent='Save & return home';$('coopHud').hidden=true;$('coopInteract').hidden=true;KEY=difficulty==='psycho'?'hollow-house-psycho-v1':'hollow-house-v1';level=1;best=0;stageSaves={};try{const s=JSON.parse(localStorage.getItem(KEY));if(s){level=s.level||1;best=s.best||0;stageSaves=s.stageSaves||{};world=stageSaves[level]||null;}}catch{}updateUI();}
 function coopDisconnect(message){if(!coop.active)return;coopLeave();releaseMouse();if(document.fullscreenElement)document.exitFullscreen().catch(()=>{});showTitleStep('roomChoice');coopStatus(message);$('roomContinue').hidden=true;}
-function coopRoomUI(){const connected=!!coop.connection?.open;$('roomContinue').hidden=!connected;$('roomCode').textContent=coop.code||'------';$('roomStart').hidden=!coop.host||!coop.ready||!coop.remoteReady||coop.started;}
+function coopRoomUI(){const connected=!!coop.connection?.open;$('roomContinue').hidden=!connected;$('roomCode').textContent=coop.host&&coop.peer?.open?coop.code:'------';$('roomStart').hidden=!coop.host||!coop.ready||!coop.remoteReady||coop.started;}
 function coopConnect(connection){
  if(coop.connection){connection.close();return;}coop.connection=connection;
  connection.on('open',()=>{coopStatus('Your teammate joined. Both players can now choose their controls and customize.');coopSend({type:'hello',profile});coopRoomUI();});
  connection.on('data',coopReceive);connection.on('close',()=>{if(coop.connection===connection)coopDisconnect('Your teammate left the room. Create or join a room to play again.');});connection.on('error',()=>{if(coop.connection===connection)coopDisconnect('Connection interrupted. Please create or join a new room.');});
 }
 function coopOpenRoom(host){
+ const entered=$('joinCode').value.replace(/\s+/g,'').toUpperCase();
+ if(!host){
+  if(!/^[A-Z2-9]{8}$/.test(entered)){coopStatus('Enter the eight-character room code. Your current room stays open.');return;}
+  if(coop.active&&coop.host&&coop.peer&&!coop.peer.destroyed&&entered===coop.code){coopStatus('You are already hosting this room. Share the code with your friend, who joins from another device or browser tab. Keep this room open.');coopRoomUI();return;}
+ }
  coopLeave();coop.active=true;coop.host=host;coop.ended=false;coop.stage=1;KEY='hollow-house-coop-v1';world=null;stageSaves={};best=2;level=1;coopStatus(host?'Creating your room...':'Connecting to the room...');$('roomContinue').hidden=true;
- const code=host?Array.from(crypto.getRandomValues(new Uint8Array(8)),n=>'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'[n%32]).join(''):$('joinCode').value.trim().toUpperCase();
- if(!/^[A-Z2-9]{8}$/.test(code)){coopStatus('Enter the eight-character room code.');coop.active=false;return;}
+ const code=host?Array.from(crypto.getRandomValues(new Uint8Array(8)),n=>'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'[n%32]).join(''):entered;
  coop.code=code;coopRoomUI();
- try{coop.peer=host?new Peer('hollow-house-'+code):new Peer();coop.peer.on('open',()=>{if(host)coopStatus('Share this code with your friend. Keep this page open.');else coopConnect(coop.peer.connect('hollow-house-'+code,{reliable:true}));});coop.peer.on('connection',c=>{if(coop.host)coopConnect(c);else c.close();});coop.peer.on('error',e=>{coopStatus(e.type==='peer-unavailable'?'Room not found. Check the code and ask the host to keep their room open.':'Could not connect. Check your internet connection and try again.');$('roomContinue').hidden=true;});}catch{coopStatus('Multiplayer is unavailable in this browser. Try a current Chrome, Edge, or Safari browser.');}
+ try{
+  const peer=host?new Peer('hollow-house-'+code):new Peer();coop.peer=peer;
+  peer.on('open',()=>{if(coop.peer!==peer)return;if(host)coopStatus('Room ready. Share this code with your friend on another device or browser tab. Keep this page open.');else coopConnect(peer.connect('hollow-house-'+code,{reliable:true}));coopRoomUI();});
+  peer.on('connection',c=>{if(coop.peer===peer&&coop.host)coopConnect(c);else c.close();});
+  peer.on('error',e=>{if(coop.peer!==peer)return;coopStatus(e.type==='peer-unavailable'?'Room not found. Ask your friend to create a room and share its current code. The host must keep that page open.':'Could not connect. Check your internet connection and try again.');$('roomContinue').hidden=true;});
+ }catch{coopStatus('Multiplayer is unavailable in this browser. Try a current Chrome, Edge, or Safari browser.');}
 }
+
 function coopSelectUI(){showTitleStep('coopLevels');const grid=$('coopLevelGrid');grid.replaceChildren();COOP_LEVELS.forEach((name,i)=>{const b=document.createElement('button');b.className='haunted-stage';b.innerHTML='<span>CO-OP LEVEL '+(i+1)+'</span><strong>'+name+'</strong><small>Two floors / three relics / two hidden keys</small>';b.disabled=!coop.host;b.onclick=()=>{coop.stage=i+1;$('coopSelected').textContent=name;coop.ready=true;coopSend({type:'ready',profile,stage:coop.stage});coopRoomUI();};grid.append(b);});$('coopSelected').textContent=coop.host?'Choose a level, then wait for your teammate.':'The host chooses the level. You are ready.';if(!coop.host){coop.ready=true;coopSend({type:'ready',profile});}coopRoomUI();}
 function coopApproach(item){return {x:item.x+item.nx*.85,y:item.y+item.ny*.85};}
 function coopEnsureWardrobe(){
@@ -81,7 +91,7 @@ $('chooseSolo').onclick=()=>{coopLeave();$('start').onclick=solo.start;showTitle
 $('chooseMultiplayer').onclick=()=>{showTitleStep('roomChoice');coopStatus('Create a room or enter your friend\'s eight-character code.');coopRoomUI();};
 $('playBack').onclick=openTitle;$('roomBack').onclick=()=>{coopLeave();showTitleStep('playChoice');};
 $('createRoom').onclick=()=>coopOpenRoom(true);$('joinRoom').onclick=()=>coopOpenRoom(false);
-$('copyRoom').onclick=async()=>{try{await navigator.clipboard.writeText(coop.code);coopStatus('Room code copied. Send it to your friend.');}catch{coopStatus('Your room code is '+coop.code+'.');}};
+$('copyRoom').onclick=async()=>{if(!coop.host||!coop.peer?.open){coopStatus('Create a room first and wait for its code to appear.');return;}try{await navigator.clipboard.writeText(coop.code);coopStatus('Room code copied. Send it to your friend.');}catch{coopStatus('Your room code is '+coop.code+'.');}};
 $('roomContinue').onclick=()=>showTitleStep('deviceChoice');
 for(const id of ['chooseComputer','choosePhone']){const original=$(id).onclick;$(id).onclick=()=>{if(!coop.active)return original();setDevice(id==='choosePhone'?'phone':'computer');coopSelectUI();};}
 $('deviceBack').onclick=()=>showTitleStep(coop.active?'roomChoice':'playChoice');
