@@ -7,5 +7,6 @@ const scripts=[...html.matchAll(/<script src="([^"]+)"/g)].map(m=>m[1]);assert.d
 const ids=[...html.matchAll(/\bid="([^"]+)"/g)].map(m=>m[1]);assert.equal(new Set(ids).size,ids.length,'Duplicate HTML ids');
 const game=fs.readFileSync(path.join(root,'game.js'),'utf8');for(const m of game.matchAll(/\$\('([^']+)'\)/g))assert(ids.includes(m[1]),'Missing game UI element: '+m[1]);
 assert(fs.existsSync(path.join(root,'assets/haunted-house.png')),'Missing haunted-house background');
+assert(fs.existsSync(path.join(root,'assets/wall-plaster.jpg')),'Missing realistic wall texture');
 const config=JSON.parse(fs.readFileSync(path.join(root,'.devcontainer/devcontainer.json'),'utf8'));assert(config.forwardPorts.includes(8000));
 console.log('PASS: HTML metadata, local assets, Linux filename case, script order, UI elements, and Codespaces port configuration.');

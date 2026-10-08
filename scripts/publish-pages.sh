@@ -10,11 +10,11 @@ if [[ ! -d .pages-site/.git ]]; then
 fi
 for file in index.html style.css characters.js motion.js game.js renderer.js gpu.js ambience.js; do cp "$file" .pages-site/; done
 mkdir -p .pages-site/assets
-cp assets/haunted-house.png .pages-site/assets/
+cp assets/haunted-house.png assets/wall-plaster.jpg .pages-site/assets/
 touch .pages-site/.nojekyll
 login=$("$gh" api user --jq .login)
 id=$("$gh" api user --jq .id)
-git -C .pages-site add index.html style.css characters.js motion.js game.js renderer.js gpu.js ambience.js assets/haunted-house.png .nojekyll
+git -C .pages-site add index.html style.css characters.js motion.js game.js renderer.js gpu.js ambience.js assets/haunted-house.png assets/wall-plaster.jpg .nojekyll
 if ! git -C .pages-site diff --cached --quiet; then
  git -C .pages-site -c user.name="$login" -c user.email="${id}+${login}@users.noreply.github.com" commit -m 'Publish Hollow House game on GitHub Pages'
 fi

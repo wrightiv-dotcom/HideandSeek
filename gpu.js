@@ -21,18 +21,19 @@ function initGpu(){
   void main(){
    vec3 albedo=solid>.5?tint:texture(materials,uv).rgb;
    vec3 n=normalize(worldNormal);
-   bool skin=solid>1.5&&solid<2.5,cloth=solid>2.5;
+   bool faceless=solid>1.5&&solid<2.5,skin=faceless||solid>4.5,cloth=solid>2.5&&solid<3.5,metal=solid>3.5&&solid<4.5;
    if(skin){
     float mottling=noise(objectPosition*10.0)*.65+noise(objectPosition*35.0)*.35;
     albedo*=mix(.70,1.07,mottling);
-    float front=smoothstep(.1,.65,objectPosition.z);
+    float front=faceless?smoothstep(.1,.65,objectPosition.z):0.0;
     float sockets=exp(-pow((abs(objectPosition.x)-.38)*5.0,2.0)-pow((objectPosition.y-.07)*7.0,2.0))*front;
     float lower=exp(-pow((objectPosition.y+.44)*4.0,2.0))*front;
     albedo=mix(albedo,vec3(.12,.14,.17),clamp(sockets*.83+lower*.26,0.0,.86));
     float vein=pow(1.0-abs(sin(objectPosition.x*38.0+sin(objectPosition.y*24.0)*2.0)),18.0);
     albedo*=1.0-vein*.045;
    }
-   if(cloth){float weave=sin(objectPosition.x*460.0)*sin(objectPosition.y*610.0);albedo*=.94+weave*.035+noise(objectPosition*32.0)*.10;}
+   if(cloth){float weave=sin(objectPosition.x*460.0)*sin(objectPosition.y*610.0)*clamp(1.0-length(fwidth(objectPosition.xy))*280.0,0.0,1.0);albedo*=.94+weave*.035+noise(objectPosition*32.0)*.10;}
+   albedo=pow(max(albedo,vec3(.0)),vec3(2.2));
    vec3 delta=eye-worldPosition;float dist=length(delta);vec3 l=normalize(lightEye-worldPosition);
    float cone=pow(max(0.0,dot(normalize(worldPosition-eye),forward)),24.0);
    float diffuse=max(.0,dot(n,l));float attenuation=1.0/(1.0+dist*.25+dist*dist*.035);
@@ -54,13 +55,20 @@ function initGpu(){
    float moon=max(0.0,dot(n,normalize(vec3(-.4,.8,-.6))));
    vec3 lit=albedo*(ambient*contact+lamp*(.18+1.05*diffuse));
    lit+=albedo*vec3(.18,.29,.39)*(moon*.27+rim*.13)*(1.0-psycho);
-   float stone=solid<.5&&uv.z<11.0?1.0:0.0;float wet=solid<.5&&uv.z>13.5?smoothstep(.52,.75,noise(worldPosition*2.0)):0.0;
-   float specular=pow(max(0.0,dot(reflect(-l,n),normalize(delta))),skin?30.0:cloth?12.0:mix(24.0,110.0,wet))*lamp;
-   lit+=vec3(.75,.81,.86)*specular*(skin?.12:cloth?.018:solid>.5?.09:mix(.03,.24,wet));
+   float wet=solid<.5&&uv.z>13.5?smoothstep(.52,.75,noise(worldPosition*2.0)):0.0;
+   float roughness=skin?.55:cloth?.94:metal?.30:solid<.5?mix(.83,.24,wet):.65;
+   vec3 v=normalize(delta),halfway=normalize(l+v);float ndv=max(.001,dot(n,v)),ndl=max(0.0,dot(n,l)),ndh=max(0.0,dot(n,halfway)),vdh=max(0.0,dot(v,halfway));
+   float alpha=roughness*roughness,a2=alpha*alpha,denominator=ndh*ndh*(a2-1.0)+1.0,distribution=a2/(3.14159265*denominator*denominator+.0001),k=(roughness+1.0)*(roughness+1.0)/8.0,geometry=ndv/(ndv*(1.0-k)+k)*ndl/(ndl*(1.0-k)+k+.0001);
+   vec3 f0=metal?mix(vec3(.35),albedo,.6):vec3(.04),fresnel=f0+(1.0-f0)*pow(1.0-vdh,5.0);
+   vec3 reflection=distribution*geometry*fresnel/(4.0*ndv*max(.001,ndl));
+   lit+=reflection*lamp*ndl*.9;
+   lit+=fresnel*vec3(.035,.047,.062)*rim*(1.0-psycho);
+
    if(skin)lit+=albedo*vec3(.13,.09,.08)*lamp*pow(max(0.0,dot(-n,l)),2.0)*.22;
-   lit+=grain*(ambient+lamp)*vec3(.5,.65,.6);lit+=albedo*emission;
+   lit+=grain*(ambient+lamp)*albedo*.1;lit+=albedo*emission;
    float fog=1.0-exp(-dist*dist*.0035);lit=mix(lit,vec3(.024,.035,.041)*mix(1.0,.025,psycho),fog);
-   color=vec4(pow(max(lit,vec3(0.0)),vec3(.87)),1.0);
+   lit*=1.55;vec3 mapped=clamp((lit*(2.51*lit+.03))/(lit*(2.43*lit+.59)+.14),0.0,1.0);
+   color=vec4(pow(mapped,vec3(1.0/2.2)),1.0);
   }`;
   const shader=(type,source)=>{const s=gl.createShader(type);gl.shaderSource(s,source);gl.compileShader(s);if(!gl.getShaderParameter(s,gl.COMPILE_STATUS))throw Error(gl.getShaderInfoLog(s));return s};
   const program=gl.createProgram();gl.attachShader(program,shader(gl.VERTEX_SHADER,vertex));gl.attachShader(program,shader(gl.FRAGMENT_SHADER,fragment));gl.linkProgram(program);if(!gl.getProgramParameter(program,gl.LINK_STATUS))throw Error(gl.getProgramInfoLog(program));
@@ -68,7 +76,7 @@ function initGpu(){
   const uniforms={};for(const name of ['vp','model','normalMatrix','materials','eye','forward','tint','solid','psycho','flashlight','emission','shadowMap','lightVP','shadowTexel','lightEye'])uniforms[name]=gl.getUniformLocation(program,name);
   const depthProgram=gl.createProgram();gl.attachShader(depthProgram,shader(gl.VERTEX_SHADER,'#version 300 es\nprecision highp float;layout(location=0) in vec3 position;uniform mat4 vp;uniform mat4 model;void main(){gl_Position=vp*model*vec4(position,1.0);}'));gl.attachShader(depthProgram,shader(gl.FRAGMENT_SHADER,'#version 300 es\nprecision highp float;void main(){}'));gl.linkProgram(depthProgram);if(!gl.getProgramParameter(depthProgram,gl.LINK_STATUS))throw Error(gl.getProgramInfoLog(depthProgram));
   const depthUniforms={vp:gl.getUniformLocation(depthProgram,'vp'),model:gl.getUniformLocation(depthProgram,'model'),normalMatrix:null,tint:null,solid:null,emission:null};
-  const shadowSize=512,shadowTexture=gl.createTexture();gl.bindTexture(gl.TEXTURE_2D,shadowTexture);gl.texImage2D(gl.TEXTURE_2D,0,gl.DEPTH_COMPONENT24,shadowSize,shadowSize,0,gl.DEPTH_COMPONENT,gl.UNSIGNED_INT,null);gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MIN_FILTER,gl.NEAREST);gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MAG_FILTER,gl.NEAREST);gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_WRAP_S,gl.CLAMP_TO_EDGE);gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_WRAP_T,gl.CLAMP_TO_EDGE);
+  const shadowSize=deviceMode==='phone'?512:1024,shadowTexture=gl.createTexture();gl.bindTexture(gl.TEXTURE_2D,shadowTexture);gl.texImage2D(gl.TEXTURE_2D,0,gl.DEPTH_COMPONENT24,shadowSize,shadowSize,0,gl.DEPTH_COMPONENT,gl.UNSIGNED_INT,null);gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MIN_FILTER,gl.NEAREST);gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MAG_FILTER,gl.NEAREST);gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_WRAP_S,gl.CLAMP_TO_EDGE);gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_WRAP_T,gl.CLAMP_TO_EDGE);
   const shadowFramebuffer=gl.createFramebuffer();gl.bindFramebuffer(gl.FRAMEBUFFER,shadowFramebuffer);gl.framebufferTexture2D(gl.FRAMEBUFFER,gl.DEPTH_ATTACHMENT,gl.TEXTURE_2D,shadowTexture,0);gl.drawBuffers([gl.NONE]);gl.readBuffer(gl.NONE);if(gl.checkFramebufferStatus(gl.FRAMEBUFFER)!==gl.FRAMEBUFFER_COMPLETE)throw Error('Shadow framebuffer incomplete');gl.bindFramebuffer(gl.FRAMEBUFFER,null);
   const textures=[];
   for(const walls of [VIEW.normalWalls,VIEW.psychoWalls]){
@@ -155,18 +163,21 @@ function drawGpuLimb(g,a,b,r,color,material=1){
 function drawGpuCharacter(g,entity,enemy,p){
  const phase=entity.gaitPhase||0,motion=entity.motion||0,stride=Math.sin(phase)*motion,yaw=enemy?(entity.moveAngle??Math.atan2(p.y-entity.y,p.x-entity.x)):(entity.angle||0);
  const forward=[Math.cos(yaw),Math.sin(yaw)],side=[-forward[1],forward[0]],base=[entity.x,0,entity.y];
- const local=(x,y,z)=>[base[0]+side[0]*x+forward[0]*z,y,base[2]+side[1]*x+forward[1]*z];
+ const breathing=Math.sin((world.time||0)*1.8+entity.x)*.002,bodyBob=motion?Math.abs(Math.sin(phase))* .005:0;
+ const local=(x,y,z)=>[base[0]+side[0]*x+forward[0]*z,y+breathing+bodyBob,base[2]+side[1]*x+forward[1]*z];
  const skin=enemy?[.86,.88,.87]:gpuColor(profile.skin),coat=enemy?[.025,.029,.034]:gpuColor(profile.color),pants=enemy?[.027,.032,.043]:[.12,.18,.15],boots=[.035,.05,.045];
- const sphere=(x,y,z,scale,color,glow=0)=>drawGpuSphere(g,local(x,y,z),scale,color,-yaw+Math.PI/2,glow,g.sphere,enemy&&(color===coat||color===pants)?3:1);
- const box=(x,y,z,scale,color,mesh=g.roundBox)=>drawGpuSphere(g,local(x,y,z),scale,color,-yaw+Math.PI/2,0,mesh,enemy&&color===coat?3:1);
+ const sphere=(x,y,z,scale,color,glow=0)=>drawGpuSphere(g,local(x,y,z),scale,color,-yaw+Math.PI/2,glow,g.sphere,(color===coat||color===pants)?3:color===skin?5:1);
+ const box=(x,y,z,scale,color,mesh=g.roundBox)=>drawGpuSphere(g,local(x,y,z),scale,color,-yaw+Math.PI/2,0,mesh,color===coat?3:1);
  const limb=(a,b,r,color)=>drawGpuLimb(g,local(...a),local(...b),r,color,enemy&&(color===coat||color===pants)?3:1);
  const hip=enemy?.55:.37,shoulder=enemy?.81:.64,head=enemy?.91:.77;
  drawGpuSphere(g,[entity.x,.003,entity.y],[enemy?.14:.18,.002,.115],[.045,.06,.051]);
  for(const sign of [-1,1]){
   const swing=stride*sign*(entity.running?.14:.09),kneeY=hip*.55+Math.max(0,swing)*.24,footY=.04+Math.max(0,swing)*.33;
   limb([sign*.06,hip,0],[sign*.07,kneeY,swing],enemy?.029:.042,pants);limb([sign*.07,kneeY,swing],[sign*.075,footY,-swing],enemy?.026:.038,pants);
-  sphere(sign*.075,footY,-swing+.025,[.043,.034,.075],boots);
+  sphere(sign*.075,footY,-swing+.025,[.040,.026,.064],boots);
+  sphere(sign*.07,kneeY,swing,[enemy?.027:.038,.025,enemy?.028:.039],pants);
   const armX=enemy?.142:.135,elbow=enemy?.60:.48,hand=enemy?.35:.36;
+  sphere(sign*(armX+.025),elbow,-swing*.9,[enemy?.027:.039,.027,enemy?.027:.04],coat);
   limb([sign*armX,shoulder,0],[sign*(armX+.025),elbow,-swing*.9],enemy?.032:.045,coat);limb([sign*(armX+.025),elbow,-swing*.9],[sign*(armX+.04),hand,swing],enemy?.024:.034,coat);
   sphere(sign*(armX+.04),hand,swing,[enemy?.019:.028,enemy?.045:.039,.024],skin);
   for(let finger=0;finger<(enemy?4:3);finger++){const x=sign*(armX+.032)+finger*.007*sign,length=enemy?.065+finger*.008:.027;limb([x,hand-.02,swing+.004],[x+sign*.008,hand-.02-length,swing+.014],enemy?.003:.0045,skin)}
@@ -230,12 +241,13 @@ function renderGpuScene(p,horizon){
  const gl=g.gl,u=g.uniforms;
  try{
   if(g.grid!==world.grid||g.furniture!==world.furniture||g.seed!==world.decorSeed)buildGpuScene(g);
+  const shadowSize=deviceMode==='phone'?512:1024;if(g.shadowSize!==shadowSize){g.shadowSize=shadowSize;gl.activeTexture(gl.TEXTURE1);gl.bindTexture(gl.TEXTURE_2D,g.shadowTexture);gl.texImage2D(gl.TEXTURE_2D,0,gl.DEPTH_COMPONENT24,shadowSize,shadowSize,0,gl.DEPTH_COMPONENT,gl.UNSIGNED_INT,null);}
   const light=renderGpuShadow(g,p,horizon);
   const width=deviceMode==='phone'?800:Math.min(1800,Math.max(1000,Math.round(canvas.clientWidth||1000)));if(g.surface.width!==width){g.surface.width=width;g.surface.height=width*.7}gl.viewport(0,0,g.surface.width,g.surface.height);gl.clearColor(0,0,0,1);gl.clear(gl.COLOR_BUFFER_BIT|gl.DEPTH_BUFFER_BIT);gl.useProgram(g.program);
   gl.uniformMatrix4fv(u.lightVP,false,light.vp);gl.uniform3fv(u.lightEye,light.eye);gl.uniform2f(u.shadowTexel,1/g.shadowSize,1/g.shadowSize);gl.uniform1i(u.shadowMap,1);gl.activeTexture(gl.TEXTURE1);gl.bindTexture(gl.TEXTURE_2D,g.shadowTexture);
   const camera=gpuCamera(p,horizon);gl.uniformMatrix4fv(u.vp,false,camera.vp);gl.uniformMatrix4fv(u.model,false,gpuIdentity());gl.uniformMatrix3fv(u.normalMatrix,false,new Float32Array([1,0,0,0,1,0,0,0,1]));gl.uniform3fv(u.eye,camera.eye);gl.uniform3fv(u.forward,camera.forward);gl.uniform1f(u.psycho,difficulty==='psycho'?1:0);gl.uniform1f(u.flashlight,flashlightOn?1:0);gl.uniform1f(u.solid,0);gl.uniform1f(u.emission,0);gl.uniform1i(u.materials,0);gl.activeTexture(gl.TEXTURE0);gl.bindTexture(gl.TEXTURE_2D_ARRAY,g.textures[difficulty==='psycho'?1:0]);gl.bindVertexArray(g.scene.vao);gl.drawArrays(gl.TRIANGLES,0,g.scene.count);
   drawGpuCharacter(g,world.enemy,true,p);if(cameraMode==='third'&&!world.player.hidingId&&p.distance>.42)drawGpuCharacter(g,world.player,false,p);
-  for(const item of world.furniture||[]){const b=furnitureBounds(item),nx=item.nx||0,nz=item.ny||0,depth=nx?(b.maxX-b.minX)/2:(b.maxY-b.minY)/2;for(const sign of [-1,1])drawGpuSphere(g,[item.x+nx*(depth+.025)-nz*sign*.035,item.height*.53,item.y+nz*(depth+.025)+nx*sign*.035],[nx?.019:.010,.029,nz?.019:.010],[.39,.29,.13]);}
+  for(const item of world.furniture||[]){const b=furnitureBounds(item),nx=item.nx||0,nz=item.ny||0,depth=nx?(b.maxX-b.minX)/2:(b.maxY-b.minY)/2;for(const sign of [-1,1])drawGpuSphere(g,[item.x+nx*(depth+.025)-nz*sign*.035,item.height*.53,item.y+nz*(depth+.025)+nx*sign*.035],[nx?.019:.010,.029,nz?.019:.010],[.39,.29,.13],0,0,g.sphere,4);}
   for(const relic of world.relics)if(!relic.taken)drawGpuSphere(g,[relic.x,.52+Math.sin(world.time*3)*.018,relic.y],[.105,.16,.105],[.97,.72,.23],world.time*.7,.9,g.gem);
   if(cameraMode==='first'&&!world.player.hidingId)drawGpuFlashlight(g,p);
   gl.flush();VIEW.context.drawImage(g.surface,0,0,1000,700);return true;

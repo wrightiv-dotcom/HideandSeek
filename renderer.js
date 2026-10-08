@@ -1,5 +1,7 @@
 /* Perspective raycasting: textured 3D corridors without external dependencies. */
 const VIEW={w:1000,h:700,fov:.72,buffer:null,context:null,texture:null,sprites:null,floorImage:null,floorTexture:null,surface:null,surfaceContext:null};
+const REAL_WALL=typeof Image==='function'?new Image():null;
+if(REAL_WALL){REAL_WALL.onload=()=>{if(!VIEW.buffer)return;VIEW.normalWalls=makeDecorTextures(false);VIEW.psychoWalls=makeDecorTextures(true);if(typeof GPU!=='undefined'&&GPU){const g=GPU,gl=g.gl;gl.activeTexture(gl.TEXTURE0);for(const [index,walls] of [VIEW.normalWalls,VIEW.psychoWalls].entries()){gl.bindTexture(gl.TEXTURE_2D_ARRAY,g.textures[index]);walls.forEach((image,layer)=>gl.texSubImage3D(gl.TEXTURE_2D_ARRAY,0,0,0,layer,512,512,1,gl.RGBA,gl.UNSIGNED_BYTE,image));gl.generateMipmap(gl.TEXTURE_2D_ARRAY);}}};REAL_WALL.src='assets/wall-plaster.jpg';}
 function initView(){
  VIEW.buffer=document.createElement('canvas');VIEW.buffer.width=VIEW.w;VIEW.buffer.height=VIEW.h;VIEW.context=VIEW.buffer.getContext('2d');
  VIEW.texture=makeStoneTexture();VIEW.furnitureMaterials=makeFurnitureMaterials();VIEW.normalWalls=makeDecorTextures(false);VIEW.psychoWalls=makeDecorTextures(true);VIEW.floorTexture=makeFloorTexture();VIEW.surface=document.createElement('canvas');VIEW.surface.width=VIEW.w/2;VIEW.surface.height=VIEW.h/2;VIEW.surfaceContext=VIEW.surface.getContext('2d');VIEW.floorImage=VIEW.surfaceContext.createImageData(VIEW.w/2,VIEW.h/2);
@@ -38,7 +40,8 @@ function makeStoneTexture(){
 function makeDecorTextures(psycho){
  return Array.from({length:11},(_,kind)=>{
   const texture=document.createElement('canvas');texture.width=texture.height=512;const c=texture.getContext('2d');c.drawImage(VIEW.texture,0,0);
-  if(kind===1||kind===5){
+  if(REAL_WALL?.complete&&REAL_WALL.naturalWidth){c.save();if(kind%2){c.translate(512,0);c.scale(-1,1);}c.drawImage(REAL_WALL,0,0,512,455);c.restore();c.fillStyle='rgba(25,32,29,'+(.06+(kind%3)*.035)+')';c.fillRect(0,0,512,455);}
+  if(kind===1){
    c.fillStyle=kind===1?'#4b4034':'#454440';c.fillRect(0,0,512,453);
    for(let x=0;x<512;x+=32){c.fillStyle=x%64?'#645a4233':'#10151466';c.fillRect(x,0,2,453);c.strokeStyle='#a39b7244';c.strokeRect(x+5,14,22,423)}
    c.fillStyle='#291f1c';c.fillRect(0,410,512,45);c.fillStyle='#88735a';c.fillRect(0,405,512,5);

@@ -7,5 +7,6 @@ const base=process.env.GAME_URL||'http://127.0.0.1:8000';
  assert.equal((await fetch(base+'/.tools/gh.zip')).status,404);
  assert.equal((await fetch(base+'/',{method:'HEAD'})).status,200);
  const background=await fetch(base+'/assets/haunted-house.png');assert.equal(background.status,200);assert.equal(background.headers.get('content-type'),'image/png');
+ const wall=await fetch(base+'/assets/wall-plaster.jpg');assert.equal(wall.status,200);assert.equal(wall.headers.get('content-type'),'image/jpeg');
  console.log('PASS: localhost serves all game assets; HEAD works and internal files stay inaccessible.');
 })().catch(e=>{console.error(e);process.exit(1)});
