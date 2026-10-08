@@ -10,11 +10,11 @@ function updateLocomotion(entity,before,dt,runningHint=false,isEnemy=false){
 }
 function getCameraPose(){
  const player=world.player,angle=player.angle||0;
- if(cameraMode!=='third')return {...player,height:.5,horizonRatio:.5,distance:0};
+ if(cameraMode!=='third')return {...player,height:.5+(player.elevation||0),horizonRatio:.5,distance:0};
  let behind=0;
  // Sweep the entire boom: a camera must never pass through a corner or wall.
  for(let d=.04;d<=1.6;d+=.04){const x=player.x-Math.cos(angle)*d,y=player.y-Math.sin(angle)*d;if(!valid(x,y))break;behind=d}
- return {x:player.x-Math.cos(angle)*behind,y:player.y-Math.sin(angle)*behind,angle,height:.62,horizonRatio:.43,distance:behind};
+ return {x:player.x-Math.cos(angle)*behind,y:player.y-Math.sin(angle)*behind,angle,height:.62+(player.elevation||0),horizonRatio:.43,distance:behind};
 }
 function setCameraMode(value){
  cameraMode=value==='third'?'third':'first';

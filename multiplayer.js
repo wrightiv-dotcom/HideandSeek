@@ -3,7 +3,7 @@ const COOP_LEVELS=['The Forgotten Wing','The Broken Staircase','The Last Inherit
 const coop={active:false,host:false,peer:null,connection:null,code:'',ready:false,remoteReady:false,started:false,players:[],floors:[],keys:{stair:false,exit:false},clues:[false,false],lives:3,stage:1,ended:false,clock:0,netClock:0};
 const solo={tick,updateUI,persist,goHome,start:$('start').onclick,deviceComputer:$('chooseComputer').onclick,devicePhone:$('choosePhone').onclick};
 function coopStatus(message){$('roomStatus').textContent=message;}
-function coopSend(data){if(coop.connection?.open)coop.connection.send(data);}
+function coopSend(data){if(coop.connection?.open)coop.connection.send({...data,version:2});}
 function coopId(){return coop.host?0:1;}
 function coopLocal(){return coop.players[coopId()];}
 function coopBindWorld(){const p=coopLocal();if(!p||!coop.floors[p.floor])return;world=coop.floors[p.floor];world.player=p;world.lives=coop.lives;world.stamina=p.stamina;}
@@ -35,6 +35,28 @@ function coopOpenRoom(host){
 
 function coopSelectUI(){showTitleStep('coopLevels');const grid=$('coopLevelGrid');grid.replaceChildren();COOP_LEVELS.forEach((name,i)=>{const b=document.createElement('button');b.className='haunted-stage';b.innerHTML='<span>CO-OP LEVEL '+(i+1)+'</span><strong>'+name+'</strong><small>Two floors / three relics / two hidden keys</small>';b.disabled=!coop.host;b.onclick=()=>{coop.stage=i+1;$('coopSelected').textContent=name;coop.ready=true;coopSend({type:'ready',profile,stage:coop.stage});coopRoomUI();};grid.append(b);});$('coopSelected').textContent=coop.host?'Choose a level, then wait for your teammate.':'The host chooses the level. You are ready.';if(!coop.host){coop.ready=true;coopSend({type:'ready',profile});}coopRoomUI();}
 function coopApproach(item){return {x:item.x+item.nx*.85,y:item.y+item.ny*.85};}
+function coopBuildStairwell(floor){
+ const oldSize=world.size,size=oldSize+8,grid=Array.from({length:size},(_,y)=>Array.from({length:size},(_,x)=>y<oldSize&&x<oldSize?world.grid[y][x]:1));
+ for(let y=1;y<=8;y++)for(let x=oldSize+1;x<=oldSize+3;x++)grid[y][x]=0;
+ const landingRow=floor===0?1:7;
+ for(let x=oldSize-2;x<=oldSize+3;x++)grid[landingRow][x]=0;
+ world.grid=grid;world.size=size;
+ world.stairwell={originalSize:oldSize,x:oldSize+2.5,minX:oldSize+1,maxX:oldSize+4,start:2,end:7,rise:1.2};
+ world.stairs={x:oldSize+2.5,y:floor===0?1.5:7.5};
+}
+function coopStairHeight(entity,floor=entity.floor){
+ const s=coop.floors[floor]?.stairwell;if(!s||entity.x<s.minX||entity.x>s.maxX||entity.y<1||entity.y>9)return 0;
+ return Math.max(0,Math.min(1,(entity.y-s.start)/(s.end-s.start)))*s.rise-(floor===1?s.rise:0);
+}
+function coopWalkStairs(p,authority=coop.host){
+ const f=coop.floors[p.floor],s=f.stairwell;p.elevation=coopStairHeight(p);
+ if(!s||p.hidingId||p.x<s.minX+.2||p.x>s.maxX-.2)return;
+ if(authority&&p.floor===0&&p.y>=s.end+.2&&p.y<9){p.floor=1;p.y=s.end+.35;p.invulnerable=3;p.elevation=0;}
+ else if(authority&&p.floor===1&&p.y<=s.start-.2&&p.y>1){p.floor=0;p.y=s.start-.35;p.invulnerable=3;p.elevation=0;}
+}
+function coopCollectKey(p){
+ const f=coop.floors[p.floor],key=f.looseKey;if(!p.hidingId&&key&&!coop.keys[key.id]&&distance(p,key)<.6){coop.keys[key.id]=true;coopNotice(key.id==='stair'?'Brass bolt key collected.':'Exit key collected. Find both keys and all three relics, then escape together.');}
+}
 function coopEnsureWardrobe(){
  if(world.furniture.some(w=>w.type==='wardrobe'))return;
  // Some random loop layouts have no natural alcoves. Carve one from a wall,
@@ -44,7 +66,14 @@ function coopEnsureWardrobe(){
 }
 function coopBuild(stage){
  coop.stage=stage;coop.keys={stair:false,exit:false};coop.clues=[false,false];coop.lives=3;coop.ended=false;coop.floors=[];
- for(let f=0;f<2;f++){level=1+(stage-1)*3+f;world=null;makeWorld();coopEnsureWardrobe();ensureWallPictures();const rooms=[...mazeDistanceMap({x:1.5,y:1.5})].sort((a,b)=>b[1]-a[1]);const at=i=>{const [x,y]=rooms[Math.min(i,rooms.length-1)][0].split(',').map(Number);return {x:x+.5,y:y+.5};};world.relics=world.relics.slice(0,f===0?1:2);world.relics.forEach((r,i)=>Object.assign(r,at(i*10+8),{taken:false}));world.relicLayoutVersion=2;world.stairs=f===0?at(0):{x:1.5,y:1.5};world.exit=f===0?{x:1.5,y:1.5}:world.stairs;world.clue=at(18);const wardrobes=world.furniture.filter(o=>o.type==='wardrobe');world.keyWardrobe=wardrobes[Math.min(stage-1,wardrobes.length-1)].id;if(f===0){const keySpot=coopApproach(world.furniture.find(w=>w.id===world.keyWardrobe));world.stairs=rooms.map((_,i)=>at(i)).find(p=>distance(p,keySpot)>2&&distance(p,world.clue)>2)||world.stairs;}world.coopFloor=f;coop.floors.push(world);}
+ for(let f=0;f<2;f++){
+  level=1+(stage-1)*3+f;world=null;makeWorld();coopEnsureWardrobe();world.coopFloor=f;
+  const rooms=[...mazeDistanceMap({x:1.5,y:1.5})].sort((a,b)=>b[1]-a[1]),at=i=>{const [x,y]=rooms[Math.min(i,rooms.length-1)][0].split(',').map(Number);return {x:x+.5,y:y+.5};};
+  world.relics=world.relics.slice(0,f===0?1:2);world.relics.forEach((r,i)=>Object.assign(r,at(i*14+5),{taken:false}));world.relicLayoutVersion=2;
+  world.exit=f===0?{x:1.5,y:1.5}:null;world.clue=at(20);world.looseKey={...at(Math.floor(rooms.length*.45)),id:f===0?'stair':'exit'};
+  coopBuildStairwell(f);ensureWallPictures();coop.floors.push(world);
+ }
+
  const horizontal=coop.floors[0].grid[1][2]===0;coop.players=[0,1].map(i=>({x:1.5+(horizontal?i*.35:0),y:1.5+(horizontal?0:i*.35),angle:horizontal?0:Math.PI/2,floor:0,stamina:100,invulnerable:4,profile:i===0?{...profile}:{...(coop.remoteProfile||profile)}}));level=stage;coop.started=true;coop.ready=true;coopBindWorld();
 }
 function coopLaunch(){coop.started=true;coop.ended=false;$('settingsHome').textContent='Leave room & return home';difficulty='normal';flashlightOn=true;syncFlashlight();closeTitle();mode='playing';keys={};resetJoystick();$('overlay').classList.add('hidden');$('start').onclick=()=>{mode='playing';keys={};$('overlay').classList.add('hidden');updateUI();};coopBindWorld();updateUI();}
@@ -52,35 +81,34 @@ function coopSnapshot(){return {type:'state',players:coop.players,keys:coop.keys
 function coopReceive(data){
  if(!data||typeof data!=='object')return;
  if(data.type==='lobby'&&!coop.host){coop.started=false;coop.ended=false;coop.ready=false;coop.remoteReady=false;coopSelectUI();return;}
+ if(data.type==='hello'&&data.version!==2){coopDisconnect('This room uses an older game version. Refresh both browsers, then create a new room.');return;}
  if(data.type==='hello'){coop.remoteProfile=coopSafeProfile(data.profile);}
  if(data.type==='ready'){coop.remoteProfile=coopSafeProfile(data.profile);coop.remoteReady=true;if(!coop.host&&Number.isInteger(data.stage)){coop.stage=data.stage;$('coopSelected').textContent=COOP_LEVELS[data.stage-1]||COOP_LEVELS[0];}coopRoomUI();}
  if(data.type==='start'&&!coop.host&&Array.isArray(data.floors)&&data.floors.length===2){Object.assign(coop,{floors:data.floors,players:data.players,stage:data.stage,keys:data.keys,clues:data.clues,lives:3});coopLaunch();}
- if(data.type==='move'&&coop.host&&coop.started&&!coop.ended){const p=coop.players[1],v=data.player;if(!v||v.floor!==p.floor)return;const saved=world;world=coop.floors[p.floor];if(Number.isFinite(v.x)&&Number.isFinite(v.y)&&distance(p,v)<1.8&&valid(v.x,v.y)){p.x=v.x;p.y=v.y;p.angle=Number.isFinite(v.angle)?v.angle:p.angle;p.gaitPhase=Number.isFinite(v.gaitPhase)?v.gaitPhase:0;p.motion=Math.max(0,Math.min(1,v.motion||0));p.running=!!v.running;}if(!v.hidingId){delete p.hidingId;p.hidingSeconds=0;}else{const w=world.furniture.find(w=>w.id===v.hidingId&&w.type==='wardrobe');if(w&&distance(p,w)<1.3){p.hidingId=w.id;}}p.profile=coopSafeProfile(data.profile);world=saved;}
+ if(data.type==='move'&&coop.host&&coop.started&&!coop.ended){const p=coop.players[1],v=data.player;if(!v||v.floor!==p.floor)return;const saved=world;world=coop.floors[p.floor];if(Number.isFinite(v.x)&&Number.isFinite(v.y)&&distance(p,v)<1.8&&valid(v.x,v.y)){p.x=v.x;p.y=v.y;p.angle=Number.isFinite(v.angle)?v.angle:p.angle;p.gaitPhase=Number.isFinite(v.gaitPhase)?v.gaitPhase:0;p.motion=Math.max(0,Math.min(1,v.motion||0));p.running=!!v.running;}if(!v.hidingId){delete p.hidingId;p.hidingSeconds=0;}else{const w=world.furniture.find(w=>w.id===v.hidingId&&w.type==='wardrobe');if(w&&distance(p,w)<1.3){p.hidingId=w.id;}}p.profile=coopSafeProfile(data.profile);coopWalkStairs(p,true);coopCollectKey(p);world=saved;}
  if(data.type==='interact'&&coop.host&&coop.started)coopInteract(1);
  if(data.type==='state'&&!coop.host&&coop.started){const local=coopLocal();const incoming=data.players?.[1];if(!incoming||!Array.isArray(data.floors))return;const changed=incoming.floor!==local.floor||incoming.respawn!==local.respawn||distance(incoming,local)>1.8;coop.players=data.players;if(!changed)Object.assign(coop.players[1],{x:local.x,y:local.y,angle:local.angle,lookOffset:local.lookOffset,gaitPhase:local.gaitPhase,motion:local.motion,stamina:local.stamina});coop.keys=data.keys;coop.clues=data.clues;coop.lives=data.lives;data.floors.forEach((f,i)=>Object.assign(coop.floors[i],f));coopBindWorld();updateUI();}
  if(data.type==='death'&&!coop.host)coopDeathScreen(data.player);
  if(data.type==='end'&&!coop.host)coopEnd(data.won);
 }
 function coopSafeProfile(p){p=p||{};return {name:String(p.name||'Traveler').slice(0,18),color:/^#[0-9a-f]{6}$/i.test(p.color)?p.color:COLORS[0],skin:/^#[0-9a-f]{6}$/i.test(p.skin)?p.skin:'#e3b18b',hair:['short','long','hood'].includes(p.hair)?p.hair:'short',gender:p.gender==='female'?'female':'male',outfit:['field','padded','tactical'].includes(p.outfit)?p.outfit:'field'};}
-function coopHint(p){const f=coop.floors[p.floor];if(p.hidingId)return 'Leave the wardrobe before your air runs out.';if(distance(p,f.stairs)<.85)return p.floor===0?'Go upstairs':'Go downstairs';if(distance(p,f.clue)<1&&!coop.clues[p.floor])return 'Read the torn letter';const w=f.furniture.find(w=>w.id===f.keyWardrobe);if(w&&distance(p,w)<1.3&&!coop.keys[p.floor===0?'stair':'exit'])return 'Search the brass-marked wardrobe';if(p.floor===0&&distance(p,f.exit)<.85)return 'Unlock the front door';return '';}
+function coopHint(p){const f=coop.floors[p.floor];if(p.hidingId)return 'Leave the wardrobe before your air runs out.';if(distance(p,f.clue)<1&&!coop.clues[p.floor])return 'Read the torn letter';if(p.floor===0&&distance(p,f.exit)<.85)return 'Unlock the front door';return '';}
 function coopInteract(id=coopId()){
  if(!coop.started||coop.ended)return;if(!coop.host){coopSend({type:'interact'});return;}const p=coop.players[id],f=coop.floors[p.floor];if(p.hidingId)return;
- if(distance(p,f.stairs)<.85){p.floor=1-p.floor;Object.assign(p,coop.floors[p.floor].stairs);p.x+=.1;p.invulnerable=3;delete p.hidingId;coopBindWorld();coopSend(coopSnapshot());updateUI();return;}
- if(distance(p,f.clue)<1&&!coop.clues[p.floor]){coop.clues[p.floor]=true;coopNotice(p.floor===0?'The letter reads: The downstairs brass-marked wardrobe holds the front-door bolt key.':'The letter reads: Upstairs, search the brass-marked wardrobe for the front-door key.');}
- else {const w=f.furniture.find(w=>w.id===f.keyWardrobe),key=p.floor===0?'stair':'exit';if(w&&distance(p,w)<1.3&&!coop.keys[key]){if(!coop.clues[p.floor])coopNotice('The drawer has a hidden latch. Find the torn letter on this floor first.');else{coop.keys[key]=true;coopNotice(key==='stair'?'Brass key found. You can now open the front-door bolt.':'Exit key found. Gather all three relics and return downstairs together.');}}
-
- else if(p.floor===0&&distance(p,f.exit)<.85){if(!coop.keys.stair||!coop.keys.exit||coop.floors.some(f=>f.relics.some(r=>!r.taken)))coopNotice('The exit needs the brass bolt key, the exit key, and all three relics.');else if(coop.players.some(p=>p.floor!==0||distance(p,f.exit)>1.5))coopNotice('Wait for your teammate at the front door.');else coopEnd(true);}}
+ if(distance(p,f.clue)<1&&!coop.clues[p.floor]){coop.clues[p.floor]=true;coopNotice('The letter reads: A loose door key lies in the corridors of this floor. Follow the small gold glint. The stairs are always open.');}
+ else if(p.floor===0&&distance(p,f.exit)<.85){if(!coop.keys.stair||!coop.keys.exit||coop.floors.some(f=>f.relics.some(r=>!r.taken)))coopNotice('The exit needs both door keys and all three relics.');else if(coop.players.some(p=>p.floor!==0||distance(p,f.exit)>1.5))coopNotice('Wait for your teammate at the front door.');else coopEnd(true);}
  coopBindWorld();coopSend(coopSnapshot());updateUI();
 }
+
 function coopNotice(text){$('coopMessage').textContent=text;if(coop.host)coopSend({type:'notice',text});}
 const coopDataReceiver=coopReceive;coopReceive=function(data){if(data?.type==='notice'){$('coopMessage').textContent=String(data.text).slice(0,250);return;}coopDataReceiver(data);};
-function coopDeath(id){if(coop.ended)return;coop.lives--;const p=coop.players[id];Object.assign(p,{x:1.5,y:1.5,floor:0,stamina:100,invulnerable:5,respawn:(p.respawn||0)+1});delete p.hidingId;p.hidingSeconds=0;coop.floors.forEach(f=>{f.enemy.state='patrol';f.enemy.target=null;f.enemy.x=f.size-1.5;f.enemy.y=f.size-1.5;});coopSend(coopSnapshot());coopSend({type:'death',player:id});coopDeathScreen(id);if(coop.lives<=0)coopEnd(false);}
+function coopDeath(id){if(coop.ended)return;coop.lives--;const p=coop.players[id];Object.assign(p,{x:1.5,y:1.5,floor:0,elevation:0,stamina:100,invulnerable:5,respawn:(p.respawn||0)+1});delete p.hidingId;p.hidingSeconds=0;coop.floors.forEach(f=>{f.enemy.state='patrol';f.enemy.target=null;f.enemy.x=(f.stairwell?.originalSize||f.size)-1.5;f.enemy.y=(f.stairwell?.originalSize||f.size)-1.5;});coopSend(coopSnapshot());coopSend({type:'death',player:id});coopDeathScreen(id);if(coop.lives<=0)coopEnd(false);}
 function coopDeathScreen(id){if(id!==coopId()){coopNotice('Your teammate was caught. '+coop.lives+' team hearts remain.');return;}catchSting();coop.scare=1.35;coopBindWorld();canvas.style.filter='none';flashlightOn=true;coopNotice('You were caught. '+coop.lives+' team hearts remain. Your relics and keys are safe.');}
 function coopEnd(won){if(coop.ended)return;coop.ended=true;if(coop.host)coopSend({type:'end',won});if(won){wallet.coins+=150;saveWallet();let cleared=0;try{cleared=Number(localStorage.getItem('hollow-house-coop-cleared'))||0;}catch{}localStorage.setItem('hollow-house-coop-cleared',String(Math.max(cleared,coop.stage)));}mode=won?'won':'dead';keys={};releaseMouse();show(won?'TOGETHER, YOU ESCAPED':'THE HOUSE CLAIMED YOUR TEAM',won?'Both survivors made it out.':'No team hearts remain.',won?'Three relics, two keys, two floors. +150 coins each.':'This round is over. Start a fresh multiplayer level.','Return to multiplayer levels');$('start').onclick=()=>{coop.started=false;coop.ready=false;coop.remoteReady=false;coopSend({type:'lobby'});coopSelectUI();};updateUI();}
 function coopTick(dt){
- if(!coop.started||coop.ended)return;coopBindWorld();const p=coopLocal(),before={x:p.x,y:p.y};p.profile={...profile};p.angle=(p.angle||0)+((keys.arrowright||keys.e?1:0)-(keys.arrowleft||keys.q?1:0))*2.1*dt;const forward=Math.max(-1,Math.min(1,(keys.w||keys.arrowup?1:0)-(keys.s||keys.arrowdown?1:0)+joystickInput.forward)),strafe=Math.max(-1,Math.min(1,(keys.d?1:0)-(keys.a?1:0)+joystickInput.strafe)),dx=Math.cos(p.angle)*forward-Math.sin(p.angle)*strafe,dy=Math.sin(p.angle)*forward+Math.cos(p.angle)*strafe,sprint=keys.shift&&(forward||strafe)&&p.stamina>0;if(!p.hidingId){const len=Math.max(1,Math.hypot(dx,dy));move(p,dx/len*(sprint?4.2:2.6)*dt,dy/len*(sprint?4.2:2.6)*dt);}updateLocomotion(p,before,dt);p.stamina=Math.max(0,Math.min(100,p.stamina+(sprint?-34:22)*dt));world.stamina=p.stamina;
- if(coop.host){for(let floor=0;floor<2;floor++){world=coop.floors[floor];world.player=coop.players.find(p=>p.floor===floor)||coopLocal();world.time+=dt;updateSpiders(dt);const present=coop.players.filter(p=>p.floor===floor);for(const visitor of present){world.player=visitor;updateWallPictures(dt/Math.max(1,present.length));}const e=world.enemy,old={x:e.x,y:e.y},players=present;for(const p of players){p.invulnerable=Math.max(0,(p.invulnerable||0)-dt);if(p.hidingId){p.hidingSeconds=(p.hidingSeconds||0)+dt;if(p.hidingSeconds>=10){coopDeath(coop.players.indexOf(p));world=coop.floors[floor];continue;}}for(const r of world.relics)if(!p.hidingId&&!r.taken&&distance(p,r)<.5)r.taken=true;}
- const target=players.filter(p=>!p.hidingId&&!p.invulnerable&&distance(e,p)<7&&sees(e,p)).sort((a,b)=>distance(e,a)-distance(e,b))[0];if(target){e.state='chase';e.target={x:target.x,y:target.y};e.timer=3;}else if(e.state==='chase'){e.state='search';e.timer=3;}if(e.state==='search'){e.timer-=dt;e.moveAngle=(e.lookBase||0)+Math.sin(world.time*3)*.65;if(e.timer<=0){e.state='patrol';e.target=null;}}if(!e.target||distance(e,e.target)<.3)e.target=patrolTarget();if(e.state!=='search'){const n=path(e,e.target),d=distance(e,n),step=Math.min(d,(e.state==='chase'?1.9:1.1)*dt);if(d>.04)move(e,(n.x-e.x)/d*step,(n.y-e.y)/d*step);}updateLocomotion(e,old,dt,e.state==='chase',true);for(const p of players)if(!p.hidingId&&!p.invulnerable&&distance(p,e)<.45)coopDeath(coop.players.indexOf(p));}}
+ if(!coop.started||coop.ended)return;coopBindWorld();const p=coopLocal(),before={x:p.x,y:p.y};p.profile={...profile};p.angle=(p.angle||0)+((keys.arrowright||keys.e?1:0)-(keys.arrowleft||keys.q?1:0))*2.1*dt;const forward=Math.max(-1,Math.min(1,(keys.w||keys.arrowup?1:0)-(keys.s||keys.arrowdown?1:0)+joystickInput.forward)),strafe=Math.max(-1,Math.min(1,(keys.d?1:0)-(keys.a?1:0)+joystickInput.strafe)),dx=Math.cos(p.angle)*forward-Math.sin(p.angle)*strafe,dy=Math.sin(p.angle)*forward+Math.cos(p.angle)*strafe,sprint=keys.shift&&(forward||strafe)&&p.stamina>0;if(!p.hidingId){const len=Math.max(1,Math.hypot(dx,dy));move(p,dx/len*(sprint?4.2:2.6)*dt,dy/len*(sprint?4.2:2.6)*dt);}coopWalkStairs(p);if(coop.host)coopCollectKey(p);coopBindWorld();updateLocomotion(p,before,dt);p.stamina=Math.max(0,Math.min(100,p.stamina+(sprint?-34:22)*dt));world.stamina=p.stamina;
+ if(coop.host){for(let floor=0;floor<2;floor++){world=coop.floors[floor];world.player=coop.players.find(p=>p.floor===floor)||coopLocal();world.time+=dt;updateSpiders(dt);const present=coop.players.filter(p=>p.floor===floor);for(const visitor of present){world.player=visitor;updateWallPictures(dt/Math.max(1,present.length));}const e=world.enemy,old={x:e.x,y:e.y},players=present;for(const p of players){coopWalkStairs(p,true);if(p.floor!==floor)continue;coopCollectKey(p);p.invulnerable=Math.max(0,(p.invulnerable||0)-dt);if(p.hidingId){p.hidingSeconds=(p.hidingSeconds||0)+dt;if(p.hidingSeconds>=10){coopDeath(coop.players.indexOf(p));world=coop.floors[floor];continue;}}for(const r of world.relics)if(!p.hidingId&&!r.taken&&distance(p,r)<.5)r.taken=true;}
+ const target=players.filter(p=>!p.hidingId&&!p.invulnerable&&distance(e,p)<7&&sees(e,p)).sort((a,b)=>distance(e,a)-distance(e,b))[0];if(target){e.state='chase';e.target={x:target.x,y:target.y};e.timer=3;}else if(e.state==='chase'){e.state='search';e.timer=3;}if(e.state==='search'){e.timer-=dt;e.moveAngle=(e.lookBase||0)+Math.sin(world.time*3)*.65;if(e.timer<=0){e.state='patrol';e.target=null;}}if(!e.target||distance(e,e.target)<.3)e.target=patrolTarget();if(e.state!=='search'){const n=path(e,e.target),d=distance(e,n),step=Math.min(d,(e.state==='chase'?1.9:1.1)*dt);if(d>.04)move(e,(n.x-e.x)/d*step,(n.y-e.y)/d*step);}e.elevation=coopStairHeight(e,floor);updateLocomotion(e,old,dt,e.state==='chase',true);for(const p of players)if(!p.hidingId&&!p.invulnerable&&distance(p,e)<.45)coopDeath(coop.players.indexOf(p));}}
  coop.scare=Math.max(0,(coop.scare||0)-dt);coopBindWorld();coop.clock+=dt;coop.netClock+=dt;if(coop.netClock>=.1){coop.netClock=0;if(coop.host)coopSend(coopSnapshot());else coopSend({type:'move',player:p,profile});}updateUI();
 }
 tick=function(dt){if(coop.started)return coopTick(dt);return solo.tick(dt);};
