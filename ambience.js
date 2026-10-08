@@ -26,3 +26,9 @@ function catchSting(){
   o.connect(g);g.connect(audio.destination);stingVoices.add(v);o.onended=()=>{for(const node of v.nodes)node.disconnect();stingVoices.delete(v)};o.start(time);vibrato.start(time);o.stop(time+1.25);vibrato.stop(time+1.25);
  }
 }
+
+// An occasional quiet timber groan; distance and cooldown prevent constant creaking.
+let creakDistance=0,creakCooldown=2,creakThreshold=5;const creakVoices=new Set();
+function stopCreaks(){for(const v of creakVoices){for(const s of v.sources){try{s.stop()}catch{}}for(const n of v.nodes)n.disconnect();}creakVoices.clear();creakDistance=0;}
+function floorboardCreak(){if(!sound||!audio||audio.state!=='running')return;try{const t=audio.currentTime,o=audio.createOscillator(),g=audio.createGain(),filter=audio.createBiquadFilter(),v={sources:[o],nodes:[o,g,filter]};o.type='triangle';o.frequency.setValueAtTime(150+Math.random()*65,t);o.frequency.exponentialRampToValueAtTime(95,t+.25);o.frequency.exponentialRampToValueAtTime(180,t+.55);filter.type='bandpass';filter.frequency.value=360;if(filter.Q)filter.Q.value=1.1;g.gain.setValueAtTime(.0001,t);g.gain.exponentialRampToValueAtTime(.021,t+.09);g.gain.exponentialRampToValueAtTime(.007,t+.34);g.gain.exponentialRampToValueAtTime(.0001,t+.7);o.connect(filter);filter.connect(g);g.connect(audio.destination);creakVoices.add(v);o.onended=()=>{for(const n of v.nodes)n.disconnect();creakVoices.delete(v)};o.start();o.stop(t+.75);}catch{stopCreaks();}}
+function updateFloorCreaks(traveled,dt){if(!sound||mode!=='playing'||!world||world.player.hidingId){stopCreaks();return;}creakCooldown=Math.max(0,creakCooldown-dt);creakDistance+=traveled;if(creakDistance>=creakThreshold&&creakCooldown<=0){floorboardCreak();creakDistance=0;creakCooldown=4+Math.random()*4;creakThreshold=4+Math.random()*4;}}

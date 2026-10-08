@@ -77,3 +77,11 @@ timerGame.run(`
 `);
 const escapeGame=boot(hiddenSave);escapeGame.run(`mode='playing';world.player.hidingSeconds=9;updateUI();assert.equal(toggleHiding(),true);assert.equal(world.player.hidingSeconds,undefined);assert.equal(canvas.style.filter,'none');assert.equal(toggleHiding(),true);assert.equal(world.player.hidingSeconds,0);`);
 console.log('PASS: 10-second hiding deadline, progressive blur, pause freeze, elapsed-time saves, automatic death, effect cleanup, and leave/re-enter reset.');
+
+const atmosphereGame=boot();atmosphereGame.run(`
+ makeWorld();assert.equal(world.relics.length,3);for(let i=0;i<world.relics.length;i++)for(let j=i+1;j<world.relics.length;j++)assert(distance(world.relics[i],world.relics[j])>3);
+ for(const relic of world.relics)assert(valid(relic.x,relic.y));const taken=world.relics[0];taken.taken=true;const kept={x:taken.x,y:taken.y};delete world.relicLayoutVersion;spreadRelics();assert.equal(taken.x,kept.x);assert.equal(taken.y,kept.y);
+ for(let i=0;i<1000;i++)assert(normalLightLevel(i*.031)>=.76);
+ assert(world.spiders.length>0);const initial=world.spiders.map(s=>({x:s.x,y:s.y}));for(let i=0;i<120;i++)updateSpiders(.04);assert(world.spiders.some((s,i)=>distance(s,initial[i])>.1));for(const spider of world.spiders)assert(valid(spider.x,spider.y));
+ sound=true;mode='playing';unlockAudio();creakCooldown=0;creakDistance=0;updateFloorCreaks(9,.04);assert(creakVoices.size>0);const count=creakVoices.size;updateFloorCreaks(9,.04);assert.equal(creakVoices.size,count);pause();assert.equal(creakVoices.size,0);sound=false;floorboardCreak();assert.equal(creakVoices.size,0);
+`);console.log('PASS: spread and reachable relics, collected relic preservation, bounded Normal flicker, crawling spiders, occasional creak cooldown, pause and mute cleanup.');
