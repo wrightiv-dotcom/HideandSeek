@@ -18,7 +18,7 @@ fullscreenButton.onclick=async()=>{
 document.addEventListener('fullscreenchange',syncFullscreen);
 syncFullscreen();
 const WALLET_KEY='hollow-house-wallet-v1';let wallet={coins:0,upgrades:{}};try{const saved=JSON.parse(localStorage.getItem(WALLET_KEY));if(saved)wallet={coins:Math.max(0,Math.floor(Number(saved.coins)||0)),upgrades:saved.upgrades||{}};}catch{}
-const SHOP_ITEMS=[{id:'relicFinder',name:'Relic Finder',price:200,description:'Reveal every remaining relic on the full maze map in both modes.'},{id:'enemyTracker',name:'Slenderman Tracker',price:300,description:'Track Slenderman on the full maze map in both modes.'},{id:'quietBoots',name:'Quiet Boots',price:250,description:'Reduce the distance at which Slenderman hears you sprinting.'}];
+const SHOP_ITEMS=[{id:'relicFinder',name:'Relic Finder',price:600,description:'Reveal every remaining relic on the full maze map in both modes.'},{id:'enemyTracker',name:'Slenderman Tracker',price:900,description:'Track Slenderman on the full maze map in both modes.'},{id:'quietBoots',name:'Quiet Boots',price:750,description:'Reduce the distance at which Slenderman hears you sprinting.'}];
 function saveWallet(){try{localStorage.setItem(WALLET_KEY,JSON.stringify(wallet))}catch{}syncEconomy();}
 function syncEconomy(){for(const id of ['menuCoins','gameCoins','shopCoins'])$(id).textContent=wallet.coins+' coins';const hearts=world?.lives??((mode==='dead'||mode==='scare')?0:3);$('hearts').textContent=String.fromCharCode(0x2665).repeat(hearts)+String.fromCharCode(0x2661).repeat(3-hearts);$('hearts').setAttribute('aria-label',hearts+' of 3 hearts');$('mapButton').hidden=!world||!(wallet.upgrades.relicFinder||wallet.upgrades.enemyTracker);}
 
@@ -93,9 +93,9 @@ function updateHideUI(){const elapsed=world?.player.hidingId?(world.player.hidin
 }
 let titleStep='titleWelcome',customizationReturn='deviceChoice';
 function showTitleStep(id){
- titleStep=id;syncEconomy();$('titleShop').hidden=id==='titleWelcome'||id==='shopChoice';
- $('titleCustomize').hidden=id==='titleWelcome'||id==='customizeChoice'||id==='shopChoice';
- for(const step of ['titleWelcome','deviceChoice','modeChoice','stageChoice','storyChoice','customizeChoice','shopChoice'])$(step).hidden=step!==id;
+ titleStep=id;syncEconomy();$('titleShop').hidden=['titleWelcome','playChoice','roomChoice','shopChoice'].includes(id);
+ $('titleCustomize').hidden=['titleWelcome','playChoice','roomChoice','customizeChoice','shopChoice'].includes(id);
+ for(const step of ['titleWelcome','playChoice','roomChoice','coopLevels','deviceChoice','modeChoice','stageChoice','storyChoice','customizeChoice','shopChoice'])$(step).hidden=step!==id;
  $('titleScreen').hidden=false;$('titleScreen').classList.toggle('setup-screen',id!=='titleWelcome');
  document.body?.classList.add('title-open');
 }

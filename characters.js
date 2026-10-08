@@ -109,3 +109,5 @@ function renderShadowJumpscare(c,time){
  // Scratched darkness and rising tendrils amplify the sudden close-up.
  c.strokeStyle='#9a1b1b44';c.lineWidth=1;for(let i=0;i<13;i++){const x=(i*83+time*19)%1000;c.beginPath();c.moveTo(x,0);c.lineTo(x+Math.sin(i+time*9)*15,700);c.stroke()}
 }
+
+function getSurvivorProfile(){return profile;}

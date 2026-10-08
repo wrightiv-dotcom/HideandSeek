@@ -177,6 +177,7 @@ function drawGpuLimb(g,a,b,r,color,material=1){
  gl.uniformMatrix4fv(u.model,false,model);gl.uniformMatrix3fv(u.normalMatrix,false,new Float32Array([...right.map(v=>v/r),...up.map(v=>v/(length*.6)),...back.map(v=>v/r)]));gl.uniform3fv(u.tint,color);gl.uniform1f(u.solid,material);gl.uniform1f(u.emission,0);const mesh=material===3?g.sleeve:g.sphere;gl.bindVertexArray(mesh.vao);gl.drawArrays(gl.TRIANGLES,0,mesh.count);
 }
 function drawGpuCharacter(g,entity,enemy,p){
+ const profile=entity.profile||getSurvivorProfile();
  const phase=entity.gaitPhase||0,motion=entity.motion||0,stride=Math.sin(phase)*motion,yaw=enemy?(entity.moveAngle??Math.atan2(p.y-entity.y,p.x-entity.x)):(entity.angle||0);
  const forward=[Math.cos(yaw),Math.sin(yaw)],side=[-forward[1],forward[0]],base=[entity.x,0,entity.y];
  const breathing=Math.sin((world.time||0)*1.8+entity.x)*.002,bodyBob=motion?Math.abs(Math.sin(phase))* .005:0;
@@ -270,6 +271,12 @@ function renderGpuScene(p,horizon){
   const camera=gpuCamera(p,horizon);gl.uniformMatrix4fv(u.vp,false,camera.vp);gl.uniformMatrix4fv(u.model,false,gpuIdentity());gl.uniformMatrix3fv(u.normalMatrix,false,new Float32Array([1,0,0,0,1,0,0,0,1]));gl.uniform3fv(u.eye,camera.eye);gl.uniform3fv(u.forward,camera.forward);gl.uniform1f(u.psycho,difficulty==='psycho'?1:0);gl.uniform1f(u.flashlight,flashlightOn?1:0);gl.uniform1f(u.solid,0);gl.uniform1f(u.emission,0);gl.uniform1i(u.materials,0);gl.activeTexture(gl.TEXTURE0);gl.bindTexture(gl.TEXTURE_2D_ARRAY,g.textures[difficulty==='psycho'?1:0]);gl.bindVertexArray(g.scene.vao);gl.drawArrays(gl.TRIANGLES,0,g.scene.count);
   if(difficulty==='psycho'){gl.bindVertexArray(g.damage.vao);gl.drawArrays(gl.TRIANGLES,0,g.damage.count);}drawGpuPictures(g,p);
   drawGpuCharacter(g,world.enemy,true,p);if(cameraMode==='third'&&!world.player.hidingId&&p.distance>.42)drawGpuCharacter(g,world.player,false,p);
+  if(typeof coopTeammates==='function')for(const teammate of coopTeammates())drawGpuCharacter(g,teammate,false,p);
+  if(world.coopFloor!==undefined){
+   const s=world.stairs;for(let step=0;step<6;step++)drawGpuSphere(g,[s.x-.30+step*.12,.025+step*.035,s.y],[.07,.025+step*.035,.28],[.24,.19,.14],0,0,g.roundBox);for(const side of [-1,1])drawGpuLimb(g,[s.x-.36,.25,s.y+side*.32],[s.x+.36,.66,s.y+side*.32],.015,[.32,.27,.19]);drawGpuSphere(g,[s.x,.44,s.y],[.06,.02,.06],[.19,.59,.67],0,.9,g.gem);
+   if(!coop.clues[world.coopFloor])drawGpuSphere(g,[world.clue.x,.25,world.clue.y],[.12,.01,.15],[.85,.76,.52],world.time*.2,.5,g.roundBox);
+   const wardrobe=world.furniture.find(w=>w.id===world.keyWardrobe);if(wardrobe)drawGpuSphere(g,[wardrobe.x+wardrobe.nx*.36,.68,wardrobe.y+wardrobe.ny*.36],[.045,.025,.045],[.79,.58,.19],0,.25,g.roundBox);
+  }
   for(const spider of world.spiders||[])if(distance(spider,p)<5&&(spider.x-p.x)*Math.cos(p.angle||0)+(spider.y-p.y)*Math.sin(p.angle||0)>0)drawGpuSpider(g,spider);
   for(const lamp of g.lamps||[])drawGpuSphere(g,[lamp.x,.954,lamp.y],[.066,.008,.028],difficulty==='psycho'?[.06,.06,.06]:[.90,.78,.55],0,difficulty==='psycho'?0:normalLightLevel(world.time||0)*1.5,g.roundBox);
   for(const item of world.furniture||[]){const b=furnitureBounds(item),nx=item.nx||0,nz=item.ny||0,depth=nx?(b.maxX-b.minX)/2:(b.maxY-b.minY)/2;for(const sign of [-1,1])drawGpuSphere(g,[item.x+nx*(depth+.025)-nz*sign*.035,item.height*.53,item.y+nz*(depth+.025)+nx*sign*.035],[nx?.019:.010,.029,nz?.019:.010],[.39,.29,.13],0,0,g.sphere,4);}

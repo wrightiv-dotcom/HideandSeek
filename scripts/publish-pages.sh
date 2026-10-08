@@ -8,13 +8,15 @@ if [[ ! -d .pages-site/.git ]]; then
  git -C .pages-site init -q -b gh-pages
  git -C .pages-site remote add origin https://github.com/wrightiv-dotcom/HideandSeek.git
 fi
-for file in index.html style.css characters.js motion.js game.js renderer.js gpu.js ambience.js; do cp "$file" .pages-site/; done
+for file in index.html style.css characters.js motion.js game.js renderer.js gpu.js ambience.js multiplayer.js; do cp "$file" .pages-site/; done
+mkdir -p .pages-site/vendor
+cp vendor/peerjs.min.js vendor/peerjs.LICENSE .pages-site/vendor/
 mkdir -p .pages-site/assets
 cp assets/haunted-house.png assets/wall-plaster.jpg .pages-site/assets/
 touch .pages-site/.nojekyll
 login=$("$gh" api user --jq .login)
 id=$("$gh" api user --jq .id)
-git -C .pages-site add index.html style.css characters.js motion.js game.js renderer.js gpu.js ambience.js assets/haunted-house.png assets/wall-plaster.jpg .nojekyll
+git -C .pages-site add index.html style.css characters.js motion.js game.js renderer.js gpu.js ambience.js multiplayer.js vendor/peerjs.min.js vendor/peerjs.LICENSE assets/haunted-house.png assets/wall-plaster.jpg .nojekyll
 if ! git -C .pages-site diff --cached --quiet; then
  git -C .pages-site -c user.name="$login" -c user.email="${id}+${login}@users.noreply.github.com" commit -m 'Publish Hollow House game on GitHub Pages'
 fi
