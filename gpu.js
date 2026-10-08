@@ -46,7 +46,7 @@ function initGpu(){
    if(solid<.5){
     float layer=floor(uv.z+.5);vec2 tile=fract(uv.xy);
     float height=dot(albedo,vec3(.299,.587,.114));vec3 surfaceGradient=dFdx(height)*cross(dFdy(worldPosition),n)+dFdy(height)*cross(n,dFdx(worldPosition));float determinant=dot(dFdx(worldPosition),cross(dFdy(worldPosition),n));n=normalize(n-sign(determinant)*surfaceGradient*.045/(abs(determinant)+.0001));
-    float seams=layer==14.0?min(min(tile.x,1.0-tile.x),min(tile.y,1.0-tile.y)):1.0;
+    float seams=1.0;
     albedo*=mix(.68,1.0,smoothstep(.005,.035,seams));
    }
    diffuse=max(0.0,dot(n,l));
@@ -55,7 +55,7 @@ function initGpu(){
    float moon=max(0.0,dot(n,normalize(vec3(-.4,.8,-.6))));
    vec3 lit=albedo*(ambient*contact+lamp*(.18+1.05*diffuse));
    lit+=albedo*vec3(.18,.29,.39)*(moon*.27+rim*.13)*(1.0-psycho);
-   float wet=solid<.5&&uv.z>13.5?smoothstep(.52,.75,noise(worldPosition*2.0)):0.0;
+   float wet=solid<.5&&uv.z>13.5?smoothstep(.65,.85,noise(worldPosition*2.0))*.25:0.0;
    float roughness=skin?.55:cloth?.94:metal?.30:solid<.5?mix(.83,.24,wet):.65;
    vec3 v=normalize(delta),halfway=normalize(l+v);float ndv=max(.001,dot(n,v)),ndl=max(0.0,dot(n,l)),ndh=max(0.0,dot(n,halfway)),vdh=max(0.0,dot(v,halfway));
    float alpha=roughness*roughness,a2=alpha*alpha,denominator=ndh*ndh*(a2-1.0)+1.0,distribution=a2/(3.14159265*denominator*denominator+.0001),k=(roughness+1.0)*(roughness+1.0)/8.0,geometry=ndv/(ndv*(1.0-k)+k)*ndl/(ndl*(1.0-k)+k+.0001);
@@ -135,6 +135,17 @@ function buildGpuScene(g){
   for(const [nx,nz,picture] of [[1,0,layer],[-1,0,layer],[0,1,(layer+7)%11],[0,-1,(layer+7)%11]])if((picture===2||picture>=6)&&world.grid[y+nz]?.[x+nx]===0){
    const X=x+.5+nx*.515,Z=y+.5+nz*.515;
    for(const sign of [-1,1]){box(X+(nx?0:sign*.25),.574,Z+(nz?0:sign*.25),nx?.028:.023,.612,nz?.028:.023,[13,13,13,13,13]);box(X,.574+sign*.301,Z,nx?.028:.512,.018,nz?.028:.512,[13,13,13,13,13])}
+  }
+ }
+ // Low, tilted fragments cast shadows over the distressed planks.
+ g.floorDebrisCount=0;
+ for(let y=1;y<world.size-1;y++)for(let x=1;x<world.size-1;x++)if(world.grid[y][x]===0&&((x*37+y*61+(world.decorSeed||0))%11===0)){
+  const seed=Math.abs(x*117+y*83+(world.decorSeed||0));
+  for(let k=0;k<2;k++){const angle=(seed%23)*.17+k*.48,dx=Math.cos(angle),dz=Math.sin(angle),length=.30+((seed+k*13)%29)*.009,width=.055+((seed+k)%5)*.009,X=x+.35+k*.25,Z=y+.40+k*.12,lift=.008+(seed%5)*.003;
+   const points=[[-1,-1],[1,-1],[1,1],[-1,1]].map(([along,across])=>[X+dx*along*length/2-dz*across*width/2,.008+(along+1)*lift/2,Z+dz*along*length/2+dx*across*width/2]);
+   const normal=[-dx*lift/length,1,-dz*lift/length],n=Math.hypot(...normal);for(const index of [0,1,2,0,2,3]){const along=index===0||index===3?0:1,across=index<2?0:1;vertices.push(...points[index],...normal.map(v=>v/n),((seed%6)+.15+across*.7)/6,along,14);}
+   for(let i=0;i<4;i++){const p=points[i],q=points[(i+1)%4],nx=q[2]-p[2],nz=p[0]-q[0],d=Math.hypot(nx,nz);face([p,q,[q[0],.002,q[2]],[p[0],.002,p[2]]],[nx/d,0,nz/d],14);}
+   g.floorDebrisCount++;
   }
  }
  face([[0,0,0],[world.size,0,0],[world.size,0,world.size],[0,0,world.size]],[0,1,0],14,world.size);

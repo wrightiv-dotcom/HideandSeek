@@ -169,9 +169,9 @@ function drawWardrobeInterior(){
  if(stress>0){const red=ctx.createRadialGradient(500,350,80,500,350,620);red.addColorStop(0,'rgba(160,0,20,'+(stress*pulse*.12)+')');red.addColorStop(1,'rgba(180,0,18,'+(stress*(.15+pulse*.5))+')');ctx.fillStyle=red;ctx.fillRect(0,0,1000,700)}ctx.restore();
 }
 function makeFloorTexture(){
- const tex=document.createElement('canvas');tex.width=tex.height=128;const c=tex.getContext('2d');c.fillStyle='#69726d';c.fillRect(0,0,128,128);c.fillStyle='#303d3c';c.fillRect(0,0,128,3);c.fillRect(0,0,3,128);c.fillStyle='#9ba397';c.fillRect(3,3,124,1);c.fillRect(3,3,1,124);
- let seed=91;const random=()=>{seed=(Math.imul(seed,1664525)+1013904223)>>>0;return seed/4294967296};const image=c.getImageData(0,0,128,128);for(let i=0;i<image.data.length;i+=4){const n=(random()-.5)*12;for(let j=0;j<3;j++)image.data[i+j]+=n}return image.data;
+ const tex=document.createElement('canvas');tex.width=tex.height=128;const c=tex.getContext('2d');c.drawImage(makeDetailedFloorTexture(),0,0,128,128);return c.getImageData(0,0,128,128).data;
 }
+
 function drawSurfaces(p,dir,plane,horizon){
  const W=VIEW.w/2,H=VIEW.h/2,d=VIEW.floorImage.data,tex=VIEW.floorTexture;horizon/=2;
  for(let y=0;y<H;y++){const floor=y>horizon,eye=floor?p.height:1-p.height,depth=Math.min(80,H*eye/Math.max(.5,Math.abs(y-horizon))),stepX=depth*plane.x*2/W,stepY=depth*plane.y*2/W;let fx=p.x+depth*(dir.x-plane.x),fy=p.y+depth*(dir.y-plane.y);
@@ -232,10 +232,16 @@ function getPlayerSprite(){
 }
 function drawMiniMap(){let p=world.player,cell=9,r=6,x0=855,y0=40;ctx.fillStyle='#07100dda';ctx.fillRect(x0-10,y0-10,137,145);for(let y=-r;y<=r;y++)for(let x=-r;x<=r;x++){let gx=Math.floor(p.x)+x,gy=Math.floor(p.y)+y;ctx.fillStyle=world.grid[gy]?.[gx]===0?'#33473a':'#142019';ctx.fillRect(x0+(x+r)*cell,y0+(y+r)*cell,cell-1,cell-1)}let px=x0+(r+p.x%1)*cell,py=y0+(r+p.y%1)*cell;ctx.fillStyle=profile.color;ctx.beginPath();ctx.arc(px,py,3,0,7);ctx.fill();ctx.strokeStyle='#e3efc8';ctx.beginPath();ctx.moveTo(px,py);ctx.lineTo(px+Math.cos(p.angle||0)*10,py+Math.sin(p.angle||0)*10);ctx.stroke();ctx.fillStyle='#819c85';ctx.font='9px sans-serif';ctx.fillText('LOCAL MAP',x0,y0+130)}
 
-// Full-resolution, seeded stone detail for the GPU; the lighter fallback stays available.
+// Weathered timber, splintered edges and missing sections, shared by both renderers.
 function makeDetailedFloorTexture(){
  const tile=document.createElement('canvas');tile.width=tile.height=512;const c=tile.getContext('2d'),image=c.createImageData(512,512);let seed=19287;const random=()=>{seed=(Math.imul(seed,1664525)+1013904223)>>>0;return seed/4294967296};
- for(let y=0;y<512;y++)for(let x=0;x<512;x++){const i=(y*512+x)*4,edge=Math.min(x,y,511-x,511-y),cloud=Math.sin(x*.035+Math.sin(y*.025))*Math.cos(y*.019)*9+Math.sin(x*.009+y*.014)*7,grain=(random()-.5)*13,seam=edge<3?-.64:edge<8?-.15:0,base=(102+cloud+grain)*(1+seam);image.data[i]=base*.86;image.data[i+1]=base*.94;image.data[i+2]=base;image.data[i+3]=255;}c.putImageData(image,0,0);
- c.lineWidth=.7;for(let i=0;i<22;i++){let x=random()*512,y=random()*512;c.strokeStyle=i%3?'#17232642':'#bec6c31d';c.beginPath();c.moveTo(x,y);for(let k=0;k<6;k++){x+=(random()-.5)*22;y+=(random()-.5)*17;c.lineTo(x,y);}c.stroke();}
- for(let i=0;i<9;i++){const x=random()*512,y=random()*512,r=20+random()*80,g=c.createRadialGradient(x,y,0,x,y,r);g.addColorStop(0,'#0c1a2032');g.addColorStop(1,'#0c1a2000');c.fillStyle=g;c.fillRect(x-r,y-r,r*2,r*2);}return tile;
+ for(let y=0;y<512;y++)for(let x=0;x<512;x++){const i=(y*512+x)*4,board=Math.floor(x/85.333),u=x%85.333,gap=u<3||u>82,warp=Math.sin(y*.018+board)*3,grain=Math.sin((u+warp)*1.3)*4+Math.sin((u+warp)*.38)*8,wear=Math.sin(y*.023+board*2)*5+Math.cos(y*.007+u*.09)*7,tone=[8,-12,2,-5,14,-8][board],end=(y+(board%3)*153)%512<4,base=gap||end?13:104+tone+grain+wear+(random()-.5)*9;image.data[i]=base*1.02;image.data[i+1]=base*.99;image.data[i+2]=base*.92;image.data[i+3]=255;}c.putImageData(image,0,0);
+ for(let board=0;board<6;board++){
+  const left=board*512/6;
+  for(let i=0;i<32;i++){const x=left+5+random()*74,y=random()*512;c.strokeStyle=i%3?'#25252158':'#d2cbb338';c.lineWidth=.4+random()*.8;c.beginPath();c.moveTo(x,y);c.bezierCurveTo(x+2,y+30,x-3,y+70,x+1,y+120);c.stroke();}
+  const knotX=left+20+random()*40,knotY=65+random()*380;c.strokeStyle='#25242188';for(let ring=0;ring<5;ring++){c.beginPath();c.ellipse(knotX,knotY,2+ring*1.8,5+ring*7,.06,0,7);c.stroke();}
+  for(let n=0;n<2;n++){const start=40+random()*340,length=22+random()*90,edge=n?left+82:left+2;c.fillStyle='#090b0c';c.beginPath();c.moveTo(edge,start);c.lineTo(edge+(n?-12:12),start+10);c.lineTo(edge+(n?-4:4),start+25);c.lineTo(edge+(n?-10:10),start+length*.7);c.lineTo(edge,start+length);c.closePath();c.fill();c.strokeStyle='#c0b59a66';c.lineWidth=1;c.beginPath();c.moveTo(edge+(n?-13:13),start+9);c.lineTo(edge+(n?-5:5),start+35);c.lineTo(edge+(n?-11:11),start+length*.7);c.stroke();}
+  for(const y of [13+(board%3)*153,498])for(const x of [left+12,left+72]){c.fillStyle='#292b28';c.beginPath();c.arc(x,y%512,1.8,0,7);c.fill();c.fillStyle='#afa99566';c.fillRect(x-1,y%512-1,1,1);}
+ }
+ return tile;
 }
