@@ -1,7 +1,7 @@
 /* Perspective raycasting: textured 3D corridors without external dependencies. */
 const VIEW={w:1000,h:700,fov:.72,buffer:null,context:null,texture:null,sprites:null,floorImage:null,floorTexture:null,surface:null,surfaceContext:null};
 const REAL_WALL=typeof Image==='function'?new Image():null;
-if(REAL_WALL){REAL_WALL.onload=()=>{if(!VIEW.buffer)return;VIEW.normalWalls=makeDecorTextures(false);VIEW.psychoWalls=makeDecorTextures(true);if(typeof GPU!=='undefined'&&GPU){const g=GPU,gl=g.gl;gl.activeTexture(gl.TEXTURE0);for(const [index,walls] of [VIEW.normalWalls,VIEW.psychoWalls].entries()){gl.bindTexture(gl.TEXTURE_2D_ARRAY,g.textures[index]);walls.forEach((image,layer)=>gl.texSubImage3D(gl.TEXTURE_2D_ARRAY,0,0,0,layer,512,512,1,gl.RGBA,gl.UNSIGNED_BYTE,image));gl.generateMipmap(gl.TEXTURE_2D_ARRAY);}}};REAL_WALL.src='assets/wall-plaster.jpg';}
+if(REAL_WALL){REAL_WALL.onload=()=>{if(!VIEW.buffer)return;VIEW.normalWalls=makeDecorTextures(false);VIEW.psychoWalls=makeDecorTextures(true);VIEW.bareNormalWalls=null;VIEW.barePsychoWalls=null;if(typeof GPU!=='undefined'&&GPU){const g=GPU,gl=g.gl;gl.activeTexture(gl.TEXTURE0);for(const [index,walls] of [makeDecorTextures(false,true),makeDecorTextures(true,true)].entries()){gl.bindTexture(gl.TEXTURE_2D_ARRAY,g.textures[index]);walls.forEach((image,layer)=>gl.texSubImage3D(gl.TEXTURE_2D_ARRAY,0,0,0,layer,512,512,1,gl.RGBA,gl.UNSIGNED_BYTE,image));gl.texSubImage3D(gl.TEXTURE_2D_ARRAY,0,0,0,21,512,512,1,gl.RGBA,gl.UNSIGNED_BYTE,makeDecorTextures(false,true)[0]);gl.generateMipmap(gl.TEXTURE_2D_ARRAY);}}};REAL_WALL.src='assets/wall-plaster.jpg';}
 function initView(){
  VIEW.buffer=document.createElement('canvas');VIEW.buffer.width=VIEW.w;VIEW.buffer.height=VIEW.h;VIEW.context=VIEW.buffer.getContext('2d');
  VIEW.texture=makeStoneTexture();VIEW.furnitureMaterials=makeFurnitureMaterials();VIEW.normalWalls=makeDecorTextures(false);VIEW.psychoWalls=makeDecorTextures(true);VIEW.floorTexture=makeFloorTexture();VIEW.surface=document.createElement('canvas');VIEW.surface.width=VIEW.w/2;VIEW.surface.height=VIEW.h/2;VIEW.surfaceContext=VIEW.surface.getContext('2d');VIEW.floorImage=VIEW.surfaceContext.createImageData(VIEW.w/2,VIEW.h/2);
@@ -37,7 +37,7 @@ function makeStoneTexture(){
  for(let x=20;x<512;x+=64){c.fillStyle='#101b1d';c.beginPath();c.arc(x,476,3,0,Math.PI*2);c.fill();c.fillStyle='#a0aaa0';c.fillRect(x-1,474,2,1)}
  c.fillStyle='#162325';c.fillRect(0,47,512,8);c.fillStyle='#8b979166';c.fillRect(0,48,512,2);return canvas;
 }
-function makeDecorTextures(psycho){
+function makeDecorTextures(psycho,bare=false){
  return Array.from({length:11},(_,kind)=>{
   const texture=document.createElement('canvas');texture.width=texture.height=512;const c=texture.getContext('2d');c.drawImage(VIEW.texture,0,0);
   if(REAL_WALL?.complete&&REAL_WALL.naturalWidth){c.save();if(kind%2){c.translate(512,0);c.scale(-1,1);}c.drawImage(REAL_WALL,0,0,512,455);c.restore();c.fillStyle='rgba(25,32,29,'+(.06+(kind%3)*.035)+')';c.fillRect(0,0,512,455);}
@@ -46,7 +46,7 @@ function makeDecorTextures(psycho){
    for(let x=0;x<512;x+=32){c.fillStyle=x%64?'#645a4233':'#10151466';c.fillRect(x,0,2,453);c.strokeStyle='#a39b7244';c.strokeRect(x+5,14,22,423)}
    c.fillStyle='#291f1c';c.fillRect(0,410,512,45);c.fillStyle='#88735a';c.fillRect(0,405,512,5);
   }
-  if(kind===2){
+  if(kind===2&&!bare){
    c.fillStyle='#171a16';c.fillRect(130,70,252,305);c.fillStyle='#80613c';c.fillRect(138,78,236,288);c.fillStyle='#30251e';c.fillRect(146,86,220,272);c.fillStyle='#172124';c.fillRect(158,98,196,247);
    const haze=c.createRadialGradient(256,173,10,256,218,126);haze.addColorStop(0,'#637069');haze.addColorStop(1,'#111714');c.fillStyle=haze;c.fillRect(159,99,194,245);
    c.fillStyle='#070908';c.beginPath();c.moveTo(230,179);c.lineTo(278,179);c.lineTo(299,329);c.lineTo(215,329);c.closePath();c.fill();
@@ -65,11 +65,15 @@ function makeDecorTextures(psycho){
    if(kind===4){c.fillStyle='#151b17';for(let y=90;y<198;y+=14){c.fillRect(left+30,y,width/2-55,4);c.fillRect(285,y,width/2-55,4)}}
    c.fillStyle='#131713';c.fillRect(left-4,441,width+8,13);
   }
-  if(kind>=6)paintWallPicture(c,kind);
+  if(kind>=6&&!bare)paintWallPicture(c,kind);
   if(psycho){
-   c.fillStyle='#520916cc';c.beginPath();c.ellipse(155,180,64,36,-.3,0,7);c.fill();c.fillStyle='#850b1ccc';
-   for(let i=0;i<13;i++){const x=103+i*10,y=160+(i%4)*12,length=40+(i*37)%180;c.fillRect(x,y,3+(i%4),length);c.beginPath();c.ellipse(x+2,y+length,3,6,0,0,7);c.fill()}
-   c.fillStyle='#640c15';for(let i=0;i<27;i++){c.beginPath();c.arc(60+(i*67)%350,120+(i*31)%160,1+i%5,0,7);c.fill()}
+   for(let claw=0;claw<4;claw++){const x=58+claw*22;c.strokeStyle='#b6aa8966';c.lineWidth=8;c.beginPath();c.moveTo(x+12,92);c.bezierCurveTo(x-10,154,x+27,222,x-6,307);c.stroke();c.strokeStyle='#170e0c';c.lineWidth=4;c.stroke();}
+   // Uneven dried smears, thin gravity trails and irregular splatter.
+   let bloodSeed=417+kind*977;const stainRandom=()=>{bloodSeed=(Math.imul(bloodSeed,1664525)+1013904223)>>>0;return bloodSeed/4294967296;};
+   c.save();c.globalCompositeOperation='multiply';
+   for(let stroke=0;stroke<19;stroke++){const x=115+stainRandom()*98,y=138+stainRandom()*52;c.strokeStyle=stroke%3?'#49131999':'#721b2080';c.lineWidth=2+stainRandom()*8;c.beginPath();c.moveTo(x,y);c.bezierCurveTo(x-9,y+16,x+13,y+29,x-17,y+35+stainRandom()*26);c.stroke();}
+   for(let drip=0;drip<12;drip++){const x=112+stainRandom()*89,y=170+stainRandom()*34,length=17+Math.pow(stainRandom(),2)*148;c.strokeStyle='#571419a8';c.lineWidth=.8+stainRandom()*2;c.beginPath();c.moveTo(x,y);c.bezierCurveTo(x+2,y+length*.4,x-2,y+length*.8,x+.5,y+length);c.stroke();c.fillStyle='#3c1116a0';c.beginPath();c.ellipse(x+.5,y+length,1+stainRandom(),2.6,0,0,7);c.fill();}
+   for(let dot=0;dot<73;dot++){const x=88+stainRandom()*163,y=119+stainRandom()*144,r=.3+Math.pow(stainRandom(),3)*3.5;c.fillStyle=dot%2?'#46141aa0':'#681c2266';c.beginPath();c.ellipse(x,y,r,r*(.6+stainRandom()),stainRandom(),0,7);c.fill();}c.restore();
    // Spider silk is painted into the wall plane, so it follows perspective.
    for(const corner of [0,512]){c.strokeStyle='#c9d1c055';c.lineWidth=1.4;for(let i=0;i<7;i++){const angle=i*Math.PI/12;c.beginPath();c.moveTo(corner,0);c.lineTo(corner+(corner===0?1:-1)*Math.cos(angle)*185,Math.sin(angle)*185);c.stroke()}
     for(let r=30;r<=180;r+=30){c.beginPath();for(let i=0;i<7;i++){const angle=i*Math.PI/12,x=corner+(corner===0?1:-1)*Math.cos(angle)*r,y=Math.sin(angle)*r;i?c.lineTo(x,y):c.moveTo(x,y)}c.stroke()}}
@@ -204,12 +208,12 @@ function render3D(){
  const gpuRendered=renderGpuScene(p,horizon);
  if(!gpuRendered)drawSurfaces(p,dir,plane,horizon);
  const z=new Float32Array(W);
- for(let x=0;x<W;x++){let camera=2*x/W-1,ray=castRay(p,dir.x+plane.x*camera,dir.y+plane.y*camera);z[x]=ray.depth;if(gpuRendered)continue;let height=H/ray.depth,top=horizon-height*(1-p.height);const walls=difficulty==='psycho'?VIEW.psychoWalls:VIEW.normalWalls,texture=walls[Math.abs(ray.x*17+ray.y*31+ray.side*7+(world.decorSeed||0))%walls.length];c.drawImage(texture,Math.floor(ray.u*511),0,1,512,x,top,1,height);let beam=Math.exp(-camera*camera*3),shade=difficulty==='psycho'?1-(flashlightOn?Math.max(.004,.92*Math.exp(-camera*camera*7)/(1+ray.depth*.24)):.003):Math.min(.94,.08+ray.depth*.052+(ray.side?.10:0)+(1-beam)*.24+(flashlightOn?0:.48));c.fillStyle=difficulty==='psycho'?`rgba(0,0,0,${shade})`:`rgba(4,9,11,${shade})`;c.fillRect(x,top,1,height);c.fillStyle=`rgba(0,0,0,${Math.min(.72,.25+ray.depth*.024)})`;c.fillRect(x,top+height*.96,1,height*.04);if(difficulty!=='psycho'&&(ray.x+ray.y)%4===0){c.fillStyle=`rgba(174,208,183,${Math.max(.02,.24-ray.depth*.016)})`;c.fillRect(x,top+height*.16,1,height*.004)}}
+ for(let x=0;x<W;x++){let camera=2*x/W-1,ray=castRay(p,dir.x+plane.x*camera,dir.y+plane.y*camera);z[x]=ray.depth;if(gpuRendered)continue;let height=H/ray.depth,top=horizon-height*(1-p.height);const walls=difficulty==='psycho'?(VIEW.barePsychoWalls||=makeDecorTextures(true,true)):(VIEW.bareNormalWalls||=makeDecorTextures(false,true)),texture=walls[Math.abs(ray.x*17+ray.y*31+ray.side*7+(world.decorSeed||0))%walls.length];c.drawImage(texture,Math.floor(ray.u*511),0,1,512,x,top,1,height);let beam=Math.exp(-camera*camera*3),shade=difficulty==='psycho'?1-(flashlightOn?Math.max(.004,.92*Math.exp(-camera*camera*7)/(1+ray.depth*.24)):.003):Math.min(.94,.08+ray.depth*.052+(ray.side?.10:0)+(1-beam)*.24+(flashlightOn?0:.48));c.fillStyle=difficulty==='psycho'?`rgba(0,0,0,${shade})`:`rgba(4,9,11,${shade})`;c.fillRect(x,top,1,height);c.fillStyle=`rgba(0,0,0,${Math.min(.72,.25+ray.depth*.024)})`;c.fillRect(x,top+height*.96,1,height*.04);if(difficulty!=='psycho'&&(ray.x+ray.y)%4===0){c.fillStyle=`rgba(174,208,183,${Math.max(.02,.24-ray.depth*.016)})`;c.fillRect(x,top+height*.16,1,height*.004)}}
  drawFurniture(p,dir,plane,horizon,z,!gpuRendered);
- let items=[{...world.exit,type:'door'},...(gpuRendered?[]:(world.spiders||[]).map(s=>({...s,type:'spider'}))),...(gpuRendered?[]:world.relics.filter(r=>!r.taken).map(r=>({...r,type:'relic'}))),...(gpuRendered?[]:[{...world.enemy,type:'enemy'}])];
+ let items=[{...world.exit,type:'door'},...(gpuRendered?[]:(world.wallPictures||[]).map(p=>{const pose=picturePose(p);return {...p,x:pose.x,y:pose.z,type:'picture',pose}})),...(gpuRendered?[]:(world.spiders||[]).map(s=>({...s,type:'spider'}))),...(gpuRendered?[]:world.relics.filter(r=>!r.taken).map(r=>({...r,type:'relic'}))),...(gpuRendered?[]:[{...world.enemy,type:'enemy'}])];
  if(!gpuRendered&&!player.hidingId&&cameraMode==='third'&&p.distance>=.42)items.push({...player,type:'player'});
  let objects=items.map(o=>({...o,...projectObject(o,p,dir,plane)})).filter(o=>o.depth>.08).sort((a,b)=>b.depth-a.depth);
- for(let o of objects){let height=H/o.depth*(o.type==='spider'?.055:o.type==='relic'?.48:o.type==='enemy'?1.04:o.type==='player'?.88:.94),width=height*.75,screen=W/2*(1+o.side/o.depth),bottom=horizon+H*p.height/o.depth,top=bottom-height;if(o.type==='relic')top=horizon-height/2+Math.sin(world.time*3)*4/o.depth;let left=screen-width/2,right=screen+width/2;if(right<0||left>W)continue;let sprite=o.type==='spider'?getSpiderSprite(o):o.type==='enemy'?getEnemySprite(o):o.type==='player'?getPlayerSprite():VIEW.sprites[o.type];c.globalAlpha=(o.type==='player'?1:Math.max(.3,1-o.depth/18))*(difficulty==='psycho'&&o.type!=='relic'?(flashlightOn?Math.max(.02,Math.exp(-Math.pow(o.side/o.depth,2)*7)/(1+o.depth*.14)):.015):1);for(let x=Math.max(0,Math.floor(left));x<Math.min(W,right);x++)if(o.depth<z[x]){let u=Math.max(0,Math.min(sprite.width-1,Math.floor((x-left)/width*sprite.width)));drawOccludedSpriteColumn(sprite,u,x,top,height,o.depth)}c.globalAlpha=1}
+ for(let o of objects){let height=H/o.depth*(o.type==='picture'?.61*Math.max(.08,Math.cos(o.pose.tilt)):o.type==='spider'?.055:o.type==='relic'?.48:o.type==='enemy'?1.04:o.type==='player'?.88:.94),width=height*.75,screen=W/2*(1+o.side/o.depth),bottom=horizon+H*p.height/o.depth,top=bottom-height;if(o.type==='picture')top=horizon-H*(o.pose.height-p.height)/o.depth-height/2; if(o.type==='relic')top=horizon-height/2+Math.sin(world.time*3)*4/o.depth;let left=screen-width/2,right=screen+width/2;if(right<0||left>W)continue;let sprite=o.type==='picture'?getPictureSprite(o):o.type==='spider'?getSpiderSprite(o):o.type==='enemy'?getEnemySprite(o):o.type==='player'?getPlayerSprite():VIEW.sprites[o.type];c.globalAlpha=(o.type==='player'?1:Math.max(.3,1-o.depth/18))*(difficulty==='psycho'&&o.type!=='relic'?(flashlightOn?Math.max(.02,Math.exp(-Math.pow(o.side/o.depth,2)*7)/(1+o.depth*.14)):.015):1);for(let x=Math.max(0,Math.floor(left));x<Math.min(W,right);x++)if(o.depth<z[x]){let u=Math.max(0,Math.min(sprite.width-1,Math.floor((x-left)/width*sprite.width)));drawOccludedSpriteColumn(sprite,u,x,top,height,o.depth)}c.globalAlpha=1}
  if(!gpuRendered&&difficulty==='normal'){c.fillStyle='rgba(0,0,0,'+(1-normalLightLevel(world.time||0))*.55+')';c.fillRect(0,0,W,H);}
  ctx.imageSmoothingEnabled=true;ctx.imageSmoothingQuality='high';ctx.drawImage(VIEW.buffer,0,0,1000,700);
  if(!player.hidingId&&cameraMode==='third'&&p.distance<.42){ctx.save();ctx.translate(500-96*2.7,350-35*2.7);ctx.scale(2.7,2.7);drawSurvivorBack(ctx,player.gaitPhase||0,walking?1:0,player.running);ctx.restore()}
@@ -248,3 +252,5 @@ function makeDetailedFloorTexture(){
 }
 
 function getSpiderSprite(spider){if(!VIEW.spiderSprite){VIEW.spiderSprite=document.createElement('canvas');VIEW.spiderSprite.width=192;VIEW.spiderSprite.height=256;}const c=VIEW.spiderSprite.getContext('2d');c.clearRect(0,0,192,256);c.strokeStyle='#211b15';c.lineWidth=4;for(const side of [-1,1])for(let i=0;i<4;i++){const gait=Math.sin((spider.phase||0)+i*2+side)*8;c.beginPath();c.moveTo(96+side*10,173+i*10);c.lineTo(96+side*(35+gait),153+i*21);c.lineTo(96+side*(63+gait),135+i*30);c.stroke();}c.fillStyle='#30251a';c.beginPath();c.ellipse(96,201,19,25,0,0,7);c.fill();c.beginPath();c.ellipse(96,168,13,14,0,0,7);c.fill();return VIEW.spiderSprite;}
+
+function getPictureSprite(picture){const kind=picture.kind;VIEW.pictureSprites||={};if(!VIEW.pictureSprites[kind]){const sprite=document.createElement('canvas');sprite.width=256;sprite.height=310;sprite.getContext('2d').drawImage(VIEW.normalWalls[kind],126,63,260,310,0,0,256,310);VIEW.pictureSprites[kind]=sprite;}if(!picture.pose?.roll)return VIEW.pictureSprites[kind];VIEW.rattlingSprite||=document.createElement('canvas');VIEW.rattlingSprite.width=256;VIEW.rattlingSprite.height=310;const c=VIEW.rattlingSprite.getContext('2d');c.clearRect(0,0,256,310);c.save();c.translate(128,155);c.rotate(picture.pose.roll);c.drawImage(VIEW.pictureSprites[kind],-128,-155);c.restore();return VIEW.rattlingSprite;}
