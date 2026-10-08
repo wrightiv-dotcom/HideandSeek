@@ -81,3 +81,5 @@ Additional realism: an AI-generated photographic plaster texture (assets/wall-pl
 The floor now matches an abandoned timber interior: gray weathered planks, staggered board joints, knots, nail heads, splintered gaps and broken sections. Low raised board fragments add real depth and flashlight shadows. The CPU renderer uses a downsampled version of the same timber material.
 
 Normal-mode ceiling lights flicker gently above a steady ambient brightness floor. Relics use farthest-point spacing based on both passage travel and physical distance; older runs relocate only uncollected relics once. Small saved spiders crawl along open passages with animated legs. Quiet floorboard creaks play occasionally during movement, with distance thresholds and cooldowns; pause, hiding and mute stop them.
+
+Wall pictures are now independent 3D frames. A subset reacts to a nearby survivor in either mode: rattles, falls, plays a glass/wood crash once and stays on the floor across saves. Pause and mute stop the audio. Psycho walls add claw gouges with raised lips and curled plaster flakes that receive and cast flashlight shadows; Normal keeps its gently lit surface.
