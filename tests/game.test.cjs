@@ -3,8 +3,8 @@ const fs=require('node:fs'),vm=require('node:vm'),assert=require('node:assert/st
 const noop=()=>{},gradient={addColorStop:noop};
 const context=new Proxy({}, {get:(t,k)=>k==='createRadialGradient'||k==='createLinearGradient'?()=>gradient:k==='createImageData'?(w,h)=>({data:new Uint8ClampedArray(w*h*4)}):k==='getImageData'?(x,y,w,h)=>({data:new Uint8ClampedArray(w*h*4)}):noop,set:()=>true});
 function element(){return {dataset:{},style:{},children:[],value:'',open:false,classList:{add:noop,remove:noop,toggle:noop},getContext:()=>context,addEventListener:noop,setAttribute:noop,append(b){this.children.push(b)},replaceChildren(){this.children=[]},showModal(){this.open=true},close(){this.open=false}}}
-function boot(saved){
- const elements={},store={};if(saved)store['hollow-house-v1']=JSON.stringify(saved);
+function boot(saved,walletSaved){
+ const elements={},store={};if(walletSaved)store['hollow-house-wallet-v1']=JSON.stringify(walletSaved);if(saved)store['hollow-house-v1']=JSON.stringify(saved);
  const param=()=>({value:0,setValueAtTime:noop,linearRampToValueAtTime:noop,exponentialRampToValueAtTime:noop});
  const node=()=>({gain:param(),frequency:param(),pan:param(),playbackRate:param(),connect:noop,disconnect:noop,start:noop,stop:noop});
  class AudioContext{constructor(){this.state='running';this.currentTime=0;this.destination={};this.sampleRate=44100}resume(){return Promise.resolve()}createOscillator(){return node()}createGain(){return node()}createStereoPanner(){return node()}createBiquadFilter(){return node()}createBufferSource(){return node()}createBuffer(n,size){return {getChannelData:()=>new Float32Array(size)}}}
@@ -27,7 +27,7 @@ game.run(`
  $('musicToggle').onchange({target:{checked:false}});assert.equal(music,false);assert.equal(musicBus,null);
  $('effectsToggle').onchange({target:{checked:true}});assert.equal(sound,true);$('settingsHome').onclick();assert.equal(mode,'home');assert.equal(world,stageTwo);
  selectStage(1);$('start').onclick();persist();assert(stageSaves[1]);assert(stageSaves[2]);world.enemy={...world.player,state:'patrol',target:null,timer:0};tick(0);
- assert.equal(mode,'scare');assert.equal(world,null);assert.equal(stageSaves[1],undefined);assert(stageSaves[2]);assert.equal(stingVoices.size,3);draw();
+ assert.equal(mode,'scare');assert.equal(world.lives,2);assert(stageSaves[1]);assert(stageSaves[2]);assert.equal(stingVoices.size,3);draw();
  setEffects(false);assert.equal(stingVoices.size,0);finishJumpscare();assert.equal(mode,'dead');assert.equal(best,1);
  selectStage(2);$('start').onclick();clearStage();assert.equal(best,2);assert.equal(level,3);assert.equal(selectStage(4),false);assert.equal(selectStage(3),true);
 `);
@@ -60,8 +60,8 @@ const hidingGame=boot();hidingGame.run(`
 const hiddenSave=JSON.parse(hidingGame.store['hollow-house-v1']);boot(hiddenSave).run(`assert.equal(world.player.hidingId,'test-wardrobe');assert.equal(world.furniture[0].id,'test-wardrobe');`);
 hidingGame.run(`
  assert.equal(toggleHiding(),true);assert.equal(world.player.hidingId,undefined);assert.equal(flashlightOn,true);
- world.enemy={x:4.5,y:3.5,state:'chase',target:{...world.player},timer:4};assert.equal(toggleHiding(),true);assert.equal(world.player.hidingSeen,true);
- setEffects(true);world.enemy.x=world.player.x;world.enemy.y=world.player.y;tick(0);assert.equal(mode,'scare');assert.equal(stingVoices.size,3);assert([...stingVoices].every(voice=>voice.sources.length===2));
+ world.enemy={x:4.5,y:3.5,state:'chase',target:{...world.player},timer:4};assert.equal(toggleHiding(),true);assert.equal(world.player.hidingSeen,false);assert.equal(world.enemy.state,'search');
+ setEffects(true);world.enemy.x=world.player.x;world.enemy.y=world.player.y;tick(0);assert.equal(mode,'playing');assert.equal(stingVoices.size,0);for(let i=0;i<90;i++)tick(.04);assert.equal(world.enemy.state,'patrol');assert.equal(mode,'playing');toggleHiding();world.invulnerable=0;world.enemy={...world.player,state:'patrol',target:null,timer:0};tick(0);assert.equal(mode,'scare');assert.equal(stingVoices.size,3);assert([...stingVoices].every(voice=>voice.sources.length===2));
  setEffects(false);assert.equal(stingVoices.size,0);finishJumpscare();
 `);
 console.log('PASS: solid furniture/line-of-sight, wardrobe entry/exit, hidden movement lock, unseen protection, seen-entry capture, saved hiding state, varied pictures, and catch-scream mute cleanup.');
@@ -72,7 +72,7 @@ const timerGame=boot(hiddenSave);timerGame.run(`
 `);
 const timedSave=JSON.parse(timerGame.store['hollow-house-v1']);boot(timedSave).run(`assert.equal(world.player.hidingSeconds,6);`);
 timerGame.run(`
- $('start').onclick();tick(3.99);assert.equal(mode,'playing');tick(.01);assert.equal(mode,'scare');assert.equal(deathReason,'wardrobe');assert.equal(world,null);assert.equal(canvas.style.filter,'none');
+ $('start').onclick();tick(3.99);assert.equal(mode,'playing');tick(.01);assert.equal(mode,'scare');assert.equal(deathReason,'wardrobe');assert.equal(world.lives,2);assert.equal(canvas.style.filter,'none');
  finishJumpscare();assert.equal(mode,'dead');assert.equal($('overlayTitle').textContent,'Your air ran out.');
 `);
 const escapeGame=boot(hiddenSave);escapeGame.run(`mode='playing';world.player.hidingSeconds=9;updateUI();assert.equal(toggleHiding(),true);assert.equal(world.player.hidingSeconds,undefined);assert.equal(canvas.style.filter,'none');assert.equal(toggleHiding(),true);assert.equal(world.player.hidingSeconds,0);`);
@@ -89,3 +89,8 @@ const atmosphereGame=boot();atmosphereGame.run(`
 const pictureGame=boot();pictureGame.run(`
  makeWorld();ensureWallPictures();assert(world.wallPictures.some(p=>p.canFall));const picture=world.wallPictures.find(p=>p.canFall);world.player={x:picture.x+picture.nx*.45,y:picture.y+picture.ny*.45};mode='playing';sound=true;unlockAudio();let crashes=0,rattles=0;const realCrash=pictureCrash,realRattle=pictureRattle;pictureCrash=()=>{crashes++;realCrash()};pictureRattle=()=>{rattles++;realRattle()};world.wallPictures=[picture];updateWallPictures(.04);assert.equal(picture.state,'rattling');assert.equal(rattles,1);assert(pictureVoices.size>0);for(let i=0;i<25;i++)updateWallPictures(.04);assert.equal(picture.state,'falling');for(let i=0;i<20;i++)updateWallPictures(.04);assert.equal(picture.state,'fallen');assert.equal(crashes,1);for(let i=0;i<30;i++)updateWallPictures(.04);assert.equal(crashes,1);assert(picturePose(picture).height<.06);pause();assert.equal(pictureVoices.size,0);setEffects(false);realCrash();realRattle();assert.equal(pictureVoices.size,0);persist();
 `);const savedPicture=JSON.parse(pictureGame.store['hollow-house-v1']);boot(savedPicture).run(`assert.equal(world.wallPictures[0].state,'fallen');assert.equal(picturePose(world.wallPictures[0]).tilt,Math.PI/2)`);console.log('PASS: nearby picture rattle, one fall/crash, floor pose, pause/mute cleanup and saved fallen state.');
+
+const economyGame=boot();economyGame.run(`
+ $('start').onclick();ensureWallPictures();assert.equal(world.wallPictures.filter(p=>p.canFall).length,4);world.relics[0].taken=true;const maze=world.grid,keptRelic=world.relics[0];beginJumpscare();assert.equal(world.lives,2);assert.equal(world.grid,maze);assert.equal(keptRelic.taken,true);assert.equal(world.player.x,1.5);finishJumpscare();$('start').onclick();beginJumpscare();assert.equal(world.lives,1);finishJumpscare();$('start').onclick();beginJumpscare();assert.equal(world,null);assert.equal(stageSaves[level],undefined);finishJumpscare();assert.equal($('hearts').textContent,String.fromCharCode(0x2661).repeat(3));$('start').onclick();assert.equal(world.lives,3);assert.notEqual(world.grid,maze);
+ const earn=()=>{world.relics.forEach(r=>r.taken=true);world.player={...world.exit};world.enemy={x:1.5,y:1.5,state:'patrol',timer:0,target:null};tick(0);};wallet.coins=0;earn();assert.equal(wallet.coins,100);chooseDifficulty('psycho');$('start').onclick();earn();assert.equal(wallet.coins,250);assert.equal(buyUpgrade('relicFinder'),true);assert.equal(wallet.coins,50);assert.equal(buyUpgrade('relicFinder'),false);assert.equal(buyUpgrade('enemyTracker'),false);assert.equal(wallet.coins,50);wallet.coins+=300;assert.equal(buyUpgrade('enemyTracker'),true);assert.equal(wallet.coins,50);saveWallet();chooseDifficulty('normal');assert.equal(wallet.upgrades.relicFinder,true);assert.equal(wallet.upgrades.enemyTracker,true);assert.equal(wallet.coins,50);
+`);const walletSave=JSON.parse(economyGame.store['hollow-house-wallet-v1']);boot(null,walletSave).run(`assert.equal(wallet.coins,50);assert(wallet.upgrades.relicFinder&&wallet.upgrades.enemyTracker)`);console.log('PASS: exactly four falling frames, three saved hearts, preserved relics, round reset, Normal/Psycho rewards, purchases, shared wallet and reload.');
