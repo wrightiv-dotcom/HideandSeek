@@ -93,7 +93,7 @@ function updateHideUI(){const elapsed=world?.player.hidingId?(world.player.hidin
 }
 let titleStep='titleWelcome',customizationReturn='deviceChoice';
 function showTitleStep(id){
- titleStep=id;syncEconomy();
+ titleStep=id;syncEconomy();$('titleShop').hidden=id==='titleWelcome'||id==='shopChoice';
  $('titleCustomize').hidden=id==='titleWelcome'||id==='customizeChoice'||id==='shopChoice';
  for(const step of ['titleWelcome','deviceChoice','modeChoice','stageChoice','storyChoice','customizeChoice','shopChoice'])$(step).hidden=step!==id;
  $('titleScreen').hidden=false;$('titleScreen').classList.toggle('setup-screen',id!=='titleWelcome');
