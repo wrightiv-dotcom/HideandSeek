@@ -15,12 +15,34 @@ function initGpu(){
   const fragment=`#version 300 es
   precision highp float;precision highp sampler2DArray;
   in vec3 worldPosition;in vec3 worldNormal;in vec3 uv;in vec3 objectPosition;out vec4 color;
-  uniform sampler2DArray materials;uniform sampler2D shadowMap;uniform mat4 lightVP;uniform vec2 shadowTexel;uniform vec3 lightEye;uniform vec3 eye;uniform vec3 forward;uniform vec3 tint;uniform float solid;uniform float psycho;uniform float flashlight;uniform float emission;uniform float normalLight;
+  uniform sampler2DArray materials;uniform sampler2D shadowMap;uniform sampler2D grid;uniform int gridSize;uniform vec3 lampPos[8];uniform int lampCount;uniform float lampLevel;uniform float time;uniform mat4 lightVP;uniform vec2 shadowTexel;uniform vec3 lightEye;uniform vec3 eye;uniform vec3 forward;uniform vec3 tint;uniform float solid;uniform float psycho;uniform float flashlight;uniform float emission;uniform float normalLight;
   float hash(vec3 p){return fract(sin(dot(p,vec3(127.1,311.7,74.7)))*43758.5453);}
   float noise(vec3 p){vec3 i=floor(p),f=fract(p);f=f*f*(3.0-2.0*f);return mix(mix(mix(hash(i),hash(i+vec3(1,0,0)),f.x),mix(hash(i+vec3(0,1,0)),hash(i+vec3(1,1,0)),f.x),f.y),mix(mix(hash(i+vec3(0,0,1)),hash(i+vec3(1,0,1)),f.x),mix(hash(i+vec3(0,1,1)),hash(i+vec3(1,1,1)),f.x),f.y),f.z);}
+  // Maze walls stored one texel per cell let lamps respect walls and corners gather occlusion.
+  bool wallAt(ivec2 c){if(c.x<0||c.y<0||c.x>=gridSize||c.y>=gridSize)return true;return texelFetch(grid,c,0).r>.5;}
+  float cellDistance(vec2 q,ivec2 k){vec2 lo=vec2(k),d=max(max(lo-q,q-lo-1.0),vec2(0));return length(d);}
+  float lineOfSight(vec2 a,vec2 b){
+   vec2 d=b-a;ivec2 cell=ivec2(floor(a)),target=ivec2(floor(b)),stepDir=ivec2(sign(d));vec2 inv=1.0/max(abs(d),vec2(1e-5));
+   vec2 tMax=vec2((d.x>0.0?float(cell.x)+1.0-a.x:a.x-float(cell.x))*inv.x,(d.y>0.0?float(cell.y)+1.0-a.y:a.y-float(cell.y))*inv.y);
+   for(int i=0;i<14;i++){if(cell==target)return 1.0;if(tMax.x<tMax.y){tMax.x+=inv.x;cell.x+=stepDir.x;}else{tMax.y+=inv.y;cell.y+=stepDir.y;}if(wallAt(cell))return 0.0;}
+   return 0.0;
+  }
+  float gridOcclusion(vec3 p,vec3 n){
+   if(gridSize<=0)return 1.0;
+   vec2 q=p.xz+n.xz*.02;ivec2 c=ivec2(floor(q));float occ=0.0;
+   if(abs(n.y)>.5){for(int y=-1;y<=1;y++)for(int x=-1;x<=1;x++){ivec2 k=c+ivec2(x,y);if((x!=0||y!=0)&&wallAt(k))occ+=.27*exp(-cellDistance(q,k)*7.5);}}
+   else{vec2 t=vec2(-n.z,n.x);for(int s=-1;s<=1;s+=2){ivec2 k=c+ivec2(round(t*float(s)));if(wallAt(k))occ+=.34*exp(-cellDistance(q,k)*7.5);}
+    occ+=.30*exp(-max(p.y,0.0)*9.0)+(p.y<=1.001?.20*exp(-max(1.0-p.y,0.0)*11.0):0.0);}
+   return clamp(1.0-occ,.42,1.0);
+  }
+  vec3 specular(vec3 n,vec3 v,vec3 l,float roughness,vec3 f0){
+   vec3 h=normalize(l+v);float ndv=max(.001,dot(n,v)),ndl=max(0.0,dot(n,l)),ndh=max(0.0,dot(n,h)),vdh=max(0.0,dot(v,h));
+   float a=roughness*roughness,a2=a*a,den=ndh*ndh*(a2-1.0)+1.0,D=a2/(3.14159265*den*den+.0001),k=(roughness+1.0)*(roughness+1.0)/8.0,G=ndv/(ndv*(1.0-k)+k)*ndl/(ndl*(1.0-k)+k+.0001);
+   vec3 F=f0+(1.0-f0)*pow(1.0-vdh,5.0);return D*G*F/(4.0*ndv*max(.001,ndl))*ndl;
+  }
   void main(){
    vec3 albedo=solid>.5?tint:texture(materials,uv).rgb;
-   vec3 n=normalize(worldNormal);
+   vec3 geometric=normalize(worldNormal),n=geometric;
    bool faceless=solid>1.5&&solid<2.5,skin=faceless||solid>4.5,cloth=solid>2.5&&solid<3.5,metal=solid>3.5&&solid<4.5;
    if(skin){
     float mottling=noise(objectPosition*10.0)*.65+noise(objectPosition*35.0)*.35;
@@ -34,50 +56,62 @@ function initGpu(){
    }
    if(cloth){float weave=sin(objectPosition.x*460.0)*sin(objectPosition.y*610.0)*clamp(1.0-length(fwidth(objectPosition.xy))*280.0,0.0,1.0);albedo*=.94+weave*.035+noise(objectPosition*32.0)*.10;}
    albedo=pow(max(albedo,vec3(.0)),vec3(2.2));
-   vec3 delta=eye-worldPosition;float dist=length(delta);vec3 l=normalize(lightEye-worldPosition);
-   float cone=pow(max(0.0,dot(normalize(worldPosition-eye),forward)),24.0);
-   float diffuse=max(.0,dot(n,l));float attenuation=1.0/(1.0+dist*.25+dist*dist*.035);
-   float ambient=mix(.23*normalLight,.002,psycho);
-   vec4 shadowClip=lightVP*vec4(worldPosition,1.0);vec3 shadowUV=shadowClip.xyz/shadowClip.w*.5+.5;float visibility=1.0;
-   if(flashlight>.5&&shadowClip.w>0.0&&all(greaterThan(shadowUV,vec3(0)))&&all(lessThan(shadowUV,vec3(1)))){visibility=0.0;float bias=.00008+.00016*(1.0-max(0.0,dot(n,l)));for(int y=-1;y<=1;y++)for(int x=-1;x<=1;x++){float depth=texture(shadowMap,shadowUV.xy+vec2(x,y)*shadowTexel).r;visibility+=shadowUV.z-bias<=depth?1.0/9.0:0.0;}}
-   float lamp=flashlight*cone*attenuation*visibility;
-   float grain=(hash(floor(worldPosition*140.0))-.5)*(solid>.5?.02:.035);
-   float edge=mix(1.0,.83,smoothstep(.0,.045,min(fract(uv.x),1.0-fract(uv.x))));
+   vec3 delta=eye-worldPosition;float dist=length(delta);vec3 v=delta/max(dist,.0001);
+   vec3 toLight=lightEye-worldPosition;float lightDist2=dot(toLight,toLight);vec3 l=toLight*inversesqrt(max(lightDist2,.0001));
    if(solid<.5){
-    float layer=floor(uv.z+.5);vec2 tile=fract(uv.xy);
-    float height=dot(albedo,vec3(.299,.587,.114));vec3 surfaceGradient=dFdx(height)*cross(dFdy(worldPosition),n)+dFdy(height)*cross(n,dFdx(worldPosition));float determinant=dot(dFdx(worldPosition),cross(dFdy(worldPosition),n));n=normalize(n-sign(determinant)*surfaceGradient*.045/(abs(determinant)+.0001));
-    float seams=1.0;
-    albedo*=mix(.68,1.0,smoothstep(.005,.035,seams));
+    float height=dot(albedo,vec3(.299,.587,.114));vec3 surfaceGradient=dFdx(height)*cross(dFdy(worldPosition),n)+dFdy(height)*cross(n,dFdx(worldPosition));float determinant=dot(dFdx(worldPosition),cross(dFdy(worldPosition),n));n=normalize(n-sign(determinant)*surfaceGradient*.06/(abs(determinant)+.0001));
    }
-   diffuse=max(0.0,dot(n,l));
-   float contact=1.0-.25*exp(-max(worldPosition.y,0.0)*28.0)*(1.0-abs(n.y));
-   float rim=pow(1.0-max(0.0,dot(n,l)),3.0);
-   float moon=max(0.0,dot(n,normalize(vec3(-.4,.8,-.6))));
-   vec3 lit=albedo*(ambient*contact+lamp*(.18+1.05*diffuse));
-   lit+=albedo*vec3(.18,.29,.39)*(moon*.27+rim*.13)*(1.0-psycho);
    float wet=solid<.5&&uv.z>13.5&&uv.z<14.5?smoothstep(.65,.85,noise(worldPosition*2.0))*.25:0.0;
-   float roughness=skin?.55:cloth?.94:metal?.30:solid<.5?(uv.z>=15.0&&uv.z<21.0?.22:mix(.83,.24,wet)):.65;
-   vec3 v=normalize(delta),halfway=normalize(l+v);float ndv=max(.001,dot(n,v)),ndl=max(0.0,dot(n,l)),ndh=max(0.0,dot(n,halfway)),vdh=max(0.0,dot(v,halfway));
-   float alpha=roughness*roughness,a2=alpha*alpha,denominator=ndh*ndh*(a2-1.0)+1.0,distribution=a2/(3.14159265*denominator*denominator+.0001),k=(roughness+1.0)*(roughness+1.0)/8.0,geometry=ndv/(ndv*(1.0-k)+k)*ndl/(ndl*(1.0-k)+k+.0001);
-   vec3 f0=metal?mix(vec3(.35),albedo,.6):vec3(.04),fresnel=f0+(1.0-f0)*pow(1.0-vdh,5.0);
-   vec3 reflection=distribution*geometry*fresnel/(4.0*ndv*max(.001,ndl));
-   lit+=reflection*lamp*ndl*.9;
-   lit+=fresnel*vec3(.035,.047,.062)*rim*(1.0-psycho);
-
-   if(skin)lit+=albedo*vec3(.13,.09,.08)*lamp*pow(max(0.0,dot(-n,l)),2.0)*.22;
-   lit+=grain*(ambient+lamp)*albedo*.1;lit+=albedo*emission;
-   float fog=1.0-exp(-dist*dist*.0035);lit=mix(lit,vec3(.024,.035,.041)*mix(1.0,.025,psycho),fog);
-   lit*=1.55;vec3 mapped=clamp((lit*(2.51*lit+.03))/(lit*(2.43*lit+.59)+.14),0.0,1.0);
-   color=vec4(pow(mapped,vec3(1.0/2.2)),1.0);
+   float roughness=skin?.55:cloth?.94:metal?.30:solid<.5?(uv.z>=15.0&&uv.z<21.0?.22:mix(.78,.30,wet)):.65;
+   vec3 f0=metal?mix(vec3(.35),albedo,.6):vec3(.04);
+   float occlusion=solid<.5?gridOcclusion(worldPosition,geometric):1.0;
+   float contact=1.0-.30*exp(-max(worldPosition.y,0.0)*24.0)*(1.0-abs(n.y));
+   // Flashlight: bright reflector hotspot, faint ring, wide soft spill and inverse-square falloff.
+   vec3 beamDir=normalize(forward);float along=dot(-l,beamDir);
+   float cookie=.90+.10*noise(vec3((-l-beamDir*along).xy*55.0,3.0));
+   float beam=(smoothstep(.935,.993,along)+smoothstep(.976,.983,along)*(1.0-smoothstep(.986,.992,along))*.18+smoothstep(.78,.95,along)*.20)*cookie;
+   float visibility=1.0;vec4 shadowClip=lightVP*vec4(worldPosition,1.0);vec3 shadowUV=shadowClip.xyz/shadowClip.w*.5+.5;
+   if(flashlight>.5&&shadowClip.w>0.0&&all(greaterThan(shadowUV,vec3(0)))&&all(lessThan(shadowUV,vec3(1)))){visibility=0.0;float bias=.00008+.00016*(1.0-max(0.0,dot(n,l)));for(int y=-1;y<=1;y++)for(int x=-1;x<=1;x++){float depth=texture(shadowMap,shadowUV.xy+vec2(x,y)*shadowTexel).r;visibility+=shadowUV.z-bias<=depth?1.0/9.0:0.0;}}
+   vec3 torch=vec3(1.0,.94,.84)*flashlight*beam*visibility*2.6/(lightDist2+.30);
+   float ndl=max(0.0,dot(n,l));
+   vec3 lit=albedo*torch*(ndl+.04)+specular(n,v,l,roughness,f0)*torch*.9;
+   // Ceiling lamps: warm tungsten point lights, shaded downward, blocked by maze walls.
+   vec2 probe=worldPosition.xz+geometric.xz*.03;
+   for(int i=0;i<8;i++){
+    if(i>=lampCount||lampLevel<=0.0)break;
+    vec3 L=lampPos[i]-worldPosition;float d2=dot(L,L);if(d2>18.0)continue;
+    vec3 ld=L*inversesqrt(d2);float lndl=max(0.0,dot(n,ld));if(lndl<=0.0&&!skin)continue;
+    if(lineOfSight(probe,lampPos[i].xz)<.5)continue;
+    float window=pow(clamp(1.0-pow(d2/18.0,2.0),0.0,1.0),2.0),shade=.16+.84*smoothstep(-.05,.65,ld.y);
+    vec3 radiance=vec3(1.0,.71,.44)*lampLevel*1.05*shade*window/(d2+.12);
+    lit+=albedo*radiance*lndl+specular(n,v,ld,roughness,f0)*radiance*.8;
+    if(skin)lit+=albedo*vec3(.9,.35,.25)*radiance*pow(max(0.0,dot(-n,ld)),2.0)*.12;
+   }
+   float moon=max(0.0,dot(n,normalize(vec3(-.4,.8,-.6))));float rim=pow(1.0-max(0.0,dot(n,v)),3.0);
+   float ambient=mix(.10*normalLight,.002,psycho);
+   lit+=albedo*vec3(.80,.88,1.0)*ambient*(.55+.45*max(0.0,n.y*.5+.5))*occlusion*contact;
+   lit+=albedo*vec3(.18,.29,.39)*(moon*.10+rim*.06)*occlusion*(1.0-psycho);
+   lit+=f0*vec3(.035,.047,.062)*rim*(1.0-psycho);
+   if(skin)lit+=albedo*vec3(.13,.09,.08)*torch*pow(max(0.0,dot(-n,l)),2.0)*.22;
+   lit*=mix(1.0,occlusion,.55);
+   lit+=albedo*emission;
+   float fog=1.0-exp(-dist*dist*.0035);lit=mix(lit,vec3(.024,.030,.034)*mix(1.0,.025,psycho),fog);
+   // Light scattered by dust inside the flashlight beam.
+   lit+=vec3(1.0,.94,.84)*flashlight*smoothstep(.86,.995,dot(-v,beamDir))*(1.0-exp(-dist*.45))*.028;
+   lit*=1.7;vec3 mapped=clamp((lit*(2.51*lit+.03))/(lit*(2.43*lit+.59)+.14),0.0,1.0);
+   mapped=pow(mapped,vec3(1.0/2.2));
+   mapped+=(hash(vec3(gl_FragCoord.xy,floor(time*24.0)))-.5)*.028*(1.0-mapped*.6);
+   color=vec4(mapped,1.0);
   }`;
   const shader=(type,source)=>{const s=gl.createShader(type);gl.shaderSource(s,source);gl.compileShader(s);if(!gl.getShaderParameter(s,gl.COMPILE_STATUS))throw Error(gl.getShaderInfoLog(s));return s};
   const program=gl.createProgram();gl.attachShader(program,shader(gl.VERTEX_SHADER,vertex));gl.attachShader(program,shader(gl.FRAGMENT_SHADER,fragment));gl.linkProgram(program);if(!gl.getProgramParameter(program,gl.LINK_STATUS))throw Error(gl.getProgramInfoLog(program));
   gl.useProgram(program);
-  const uniforms={};for(const name of ['vp','model','normalMatrix','materials','eye','forward','tint','solid','psycho','flashlight','emission','shadowMap','lightVP','shadowTexel','lightEye','normalLight'])uniforms[name]=gl.getUniformLocation(program,name);
+  const uniforms={};for(const name of ['vp','model','normalMatrix','materials','eye','forward','tint','solid','psycho','flashlight','emission','shadowMap','lightVP','shadowTexel','lightEye','normalLight','grid','gridSize','lampPos','lampCount','lampLevel','time'])uniforms[name]=gl.getUniformLocation(program,name);
   const depthProgram=gl.createProgram();gl.attachShader(depthProgram,shader(gl.VERTEX_SHADER,'#version 300 es\nprecision highp float;layout(location=0) in vec3 position;uniform mat4 vp;uniform mat4 model;void main(){gl_Position=vp*model*vec4(position,1.0);}'));gl.attachShader(depthProgram,shader(gl.FRAGMENT_SHADER,'#version 300 es\nprecision highp float;void main(){}'));gl.linkProgram(depthProgram);if(!gl.getProgramParameter(depthProgram,gl.LINK_STATUS))throw Error(gl.getProgramInfoLog(depthProgram));
   const depthUniforms={vp:gl.getUniformLocation(depthProgram,'vp'),model:gl.getUniformLocation(depthProgram,'model'),normalMatrix:null,tint:null,solid:null,emission:null};
   const shadowSize=deviceMode==='phone'?512:1024,shadowTexture=gl.createTexture();gl.bindTexture(gl.TEXTURE_2D,shadowTexture);gl.texImage2D(gl.TEXTURE_2D,0,gl.DEPTH_COMPONENT24,shadowSize,shadowSize,0,gl.DEPTH_COMPONENT,gl.UNSIGNED_INT,null);gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MIN_FILTER,gl.NEAREST);gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MAG_FILTER,gl.NEAREST);gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_WRAP_S,gl.CLAMP_TO_EDGE);gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_WRAP_T,gl.CLAMP_TO_EDGE);
   const shadowFramebuffer=gl.createFramebuffer();gl.bindFramebuffer(gl.FRAMEBUFFER,shadowFramebuffer);gl.framebufferTexture2D(gl.FRAMEBUFFER,gl.DEPTH_ATTACHMENT,gl.TEXTURE_2D,shadowTexture,0);gl.drawBuffers([gl.NONE]);gl.readBuffer(gl.NONE);if(gl.checkFramebufferStatus(gl.FRAMEBUFFER)!==gl.FRAMEBUFFER_COMPLETE)throw Error('Shadow framebuffer incomplete');gl.bindFramebuffer(gl.FRAMEBUFFER,null);
+  const gridTexture=gl.createTexture();gl.bindTexture(gl.TEXTURE_2D,gridTexture);for(const [key,value] of [[gl.TEXTURE_MIN_FILTER,gl.NEAREST],[gl.TEXTURE_MAG_FILTER,gl.NEAREST],[gl.TEXTURE_WRAP_S,gl.CLAMP_TO_EDGE],[gl.TEXTURE_WRAP_T,gl.CLAMP_TO_EDGE]])gl.texParameteri(gl.TEXTURE_2D,key,value);gl.pixelStorei(gl.UNPACK_ALIGNMENT,1);gl.texImage2D(gl.TEXTURE_2D,0,gl.R8,1,1,0,gl.RED,gl.UNSIGNED_BYTE,new Uint8Array([0]));
   const textures=[];
   for(const [modeIndex,walls] of [makeDecorTextures(false,true),makeDecorTextures(true,true)].entries()){
    const texture=gl.createTexture();gl.bindTexture(gl.TEXTURE_2D_ARRAY,texture);gl.texStorage3D(gl.TEXTURE_2D_ARRAY,10,gl.RGBA8,512,512,22);
@@ -114,7 +148,7 @@ function initGpu(){
   const coatMesh=amount=>{const data=roundBox.slice();for(let i=0;i<data.length;i+=9){const y=data[i+1],factor=1-amount+amount*Math.abs(y),x=data[i];data[i]*=factor;data[i+4]-=data[i+3]*x*amount*Math.sign(y)/factor;data[i+3]/=factor}return geometry(data)};
   const gem=[],ring=[[1,0,0],[0,0,1],[-1,0,0],[0,0,-1]];
   for(const sign of [-1,1])for(let i=0;i<4;i++){const a=[0,sign,0],b=ring[i],c=ring[(i+1)%4],d=b.map((v,j)=>v-a[j]),e=c.map((v,j)=>v-a[j]),n=[d[1]*e[2]-d[2]*e[1],d[2]*e[0]-d[0]*e[2],d[0]*e[1]-d[1]*e[0]],length=Math.hypot(...n);for(const p of [a,b,c])gem.push(...p,...n.map(v=>v/length),0,0,0)}
-  GPU={gl,program,uniforms,pictureMeshes,depthProgram,depthUniforms,shadowTexture,shadowFramebuffer,shadowSize,surface,textures,geometry,sphere:geometry(sphere),survivorCoat:geometry(survivorCoat),survivorHead:geometry(skull),hairCap:geometry(hairCap),keyRing:geometry(keyRing),slenderHead:geometry(skull),slenderSuit:geometry(tailored),sleeve:geometry(sleeve),lapels:geometry(lapel),shirt:geometry(shirt),roundBox:geometry(roundBox),coatMale:coatMesh(.15),coatFemale:coatMesh(.23),gem:geometry(gem),scene:null,grid:null,furniture:null};
+  GPU={gl,program,uniforms,pictureMeshes,gridTexture,gridSize:0,depthProgram,depthUniforms,shadowTexture,shadowFramebuffer,shadowSize,surface,textures,geometry,sphere:geometry(sphere),survivorCoat:geometry(survivorCoat),survivorHead:geometry(skull),hairCap:geometry(hairCap),keyRing:geometry(keyRing),slenderHead:geometry(skull),slenderSuit:geometry(tailored),sleeve:geometry(sleeve),lapels:geometry(lapel),shirt:geometry(shirt),roundBox:geometry(roundBox),coatMale:coatMesh(.15),coatFemale:coatMesh(.23),gem:geometry(gem),scene:null,grid:null,furniture:null};
   surface.addEventListener('webglcontextlost',event=>{event.preventDefault();GPU=null;gpuUnavailable=true});surface.addEventListener('webglcontextrestored',()=>{GPU=null;gpuUnavailable=false});gl.enable(gl.DEPTH_TEST);gl.disable(gl.CULL_FACE);return GPU;
  }catch(error){console.warn('3D renderer unavailable; using canvas fallback.',error.message);gpuUnavailable=true;return null}
 }
@@ -167,7 +201,7 @@ function buildGpuScene(g){
   box(s.x,base+s.rise-.04,8,s.maxX-s.minX,.08,2,wood);
   for(const side of [-1,1])for(let post=0;post<=5;post++){const z=s.start+post,ground=base+(z-s.start)/(s.end-s.start)*s.rise;box(s.x+side*1.3,ground+.28,z,.035,.56,.035,[13,13,13,13,13]);}
  }
- for(let y=1;y<mazeSize-1;y++)for(let x=1;x<mazeSize-1;x++)if(world.grid[y][x]===0&&(x*13+y*17)%23===0){g.lamps.push({x:x+.5,y:y+.5});box(x+.5,.978,y+.5,.17,.035,.10,[13,13,13,13,13]);}
+ for(let y=1;y<mazeSize-1;y++)for(let x=1;x<mazeSize-1;x++)if(world.grid[y][x]===0&&(x*13+y*17)%11===0){g.lamps.push({x:x+.5,y:y+.5});box(x+.5,.978,y+.5,.17,.035,.10,[13,13,13,13,13]);}
  for(let x=2;x<mazeSize;x+=3)box(x,.995,mazeSize/2,.045,.03,mazeSize,[13,13,13,13,13]);
  for(const item of world.furniture||[]){const b=furnitureBounds(item),front=item.type==='wardrobe'?11:12,layers=[13,13,13,13,13];layers[item.nx===1?0:item.nx===-1?1:item.ny===1?2:3]=front;box(item.x,item.height/2,item.y,b.maxX-b.minX,item.height,b.maxY-b.minY,layers);
   const nx=item.nx||0,nz=item.ny||0,tx=-nz,tz=nx,depth=nx?(b.maxX-b.minX)/2:(b.maxY-b.minY)/2,width=nx?b.maxY-b.minY:b.maxX-b.minX,frontX=item.x+nx*(depth+.008),frontZ=item.y+nz*(depth+.008),wood=[13,13,13,13,13];
@@ -176,6 +210,8 @@ function buildGpuScene(g){
   for(const sign of [-1,1])for(const h of [.20,.62])if(h<item.height)trim(sign*(width/2-.045),h,.015,.043);
  }
 
+ const cells=new Uint8Array(world.size*world.size);for(let y=0;y<world.size;y++)for(let x=0;x<world.size;x++)cells[y*world.size+x]=world.grid[y][x]?255:0;
+ g.gl.activeTexture(g.gl.TEXTURE2);g.gl.bindTexture(g.gl.TEXTURE_2D,g.gridTexture);g.gl.pixelStorei(g.gl.UNPACK_ALIGNMENT,1);g.gl.texImage2D(g.gl.TEXTURE_2D,0,g.gl.R8,world.size,world.size,0,g.gl.RED,g.gl.UNSIGNED_BYTE,cells);g.gl.activeTexture(g.gl.TEXTURE0);g.gridSize=world.size;
  if(g.scene){g.gl.deleteVertexArray(g.scene.vao);g.gl.deleteBuffer(g.scene.buffer)}g.scene=g.geometry(vertices);g.grid=world.grid;g.furniture=world.furniture;g.seed=world.decorSeed;
 }
 function gpuColor(hex){return [1,3,5].map(i=>parseInt(hex.slice(i,i+2),16)/255)}
@@ -336,6 +372,9 @@ function renderGpuScene(p,horizon){
   const light=renderGpuShadow(g,p,horizon);
   const width=deviceMode==='phone'?800:Math.min(1800,Math.max(1000,Math.round(canvas.clientWidth||1000)));if(g.surface.width!==width){g.surface.width=width;g.surface.height=width*.7}gl.viewport(0,0,g.surface.width,g.surface.height);gl.clearColor(0,0,0,1);gl.clear(gl.COLOR_BUFFER_BIT|gl.DEPTH_BUFFER_BIT);gl.useProgram(g.program);
   gl.uniform1f(u.normalLight,normalLightLevel(world.time||0));gl.uniformMatrix4fv(u.lightVP,false,light.vp);gl.uniform3fv(u.lightEye,light.eye);gl.uniform2f(u.shadowTexel,1/g.shadowSize,1/g.shadowSize);gl.uniform1i(u.shadowMap,1);gl.activeTexture(gl.TEXTURE1);gl.bindTexture(gl.TEXTURE_2D,g.shadowTexture);
+  gl.uniform1i(u.grid,2);gl.uniform1i(u.gridSize,g.gridSize);gl.activeTexture(gl.TEXTURE2);gl.bindTexture(gl.TEXTURE_2D,g.gridTexture);gl.uniform1f(u.time,world.time||0);
+  const nearLamps=(g.lamps||[]).map(lamp=>({lamp,d:(lamp.x-p.x)**2+(lamp.y-p.y)**2})).filter(item=>item.d<100).sort((a,b)=>a.d-b.d).slice(0,deviceMode==='phone'?4:8),lampData=new Float32Array(24);nearLamps.forEach(({lamp},i)=>lampData.set([lamp.x,.93,lamp.y],i*3));
+  gl.uniform3fv(u.lampPos,lampData);gl.uniform1i(u.lampCount,nearLamps.length);gl.uniform1f(u.lampLevel,difficulty==='psycho'?0:normalLightLevel(world.time||0));
   const camera=gpuCamera(p,horizon);gl.uniformMatrix4fv(u.vp,false,camera.vp);gl.uniformMatrix4fv(u.model,false,gpuIdentity());gl.uniformMatrix3fv(u.normalMatrix,false,new Float32Array([1,0,0,0,1,0,0,0,1]));gl.uniform3fv(u.eye,camera.eye);gl.uniform3fv(u.forward,camera.forward);gl.uniform1f(u.psycho,difficulty==='psycho'?1:0);gl.uniform1f(u.flashlight,flashlightOn?1:0);gl.uniform1f(u.solid,0);gl.uniform1f(u.emission,0);gl.uniform1i(u.materials,0);gl.activeTexture(gl.TEXTURE0);gl.bindTexture(gl.TEXTURE_2D_ARRAY,g.textures[difficulty==='psycho'?1:0]);gl.bindVertexArray(g.scene.vao);gl.drawArrays(gl.TRIANGLES,0,g.scene.count);
   if(difficulty==='psycho'){gl.bindVertexArray(g.damage.vao);gl.drawArrays(gl.TRIANGLES,0,g.damage.count);}drawGpuPictures(g,p);
   drawGpuCharacter(g,world.enemy,true,p);if(cameraMode==='third'&&!world.player.hidingId&&p.distance>.42)drawGpuCharacter(g,world.player,false,p);
