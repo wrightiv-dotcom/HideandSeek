@@ -37,3 +37,23 @@ const pictureVoices=new Set();
 function stopPictureSounds(){for(const v of pictureVoices){for(const source of v.sources){try{source.stop()}catch{}}for(const node of v.nodes)node.disconnect();}pictureVoices.clear();}
 function pictureRattle(){if(!sound||!audio||audio.state!=='running')return;for(let i=0;i<3;i++){const t=audio.currentTime+i*.16,o=audio.createOscillator(),g=audio.createGain(),v={sources:[o],nodes:[o,g]};o.type='triangle';o.frequency.value=110+i*35;g.gain.setValueAtTime(.018,t);g.gain.exponentialRampToValueAtTime(.0001,t+.07);o.connect(g);g.connect(audio.destination);pictureVoices.add(v);o.onended=()=>{v.nodes.forEach(n=>n.disconnect());pictureVoices.delete(v)};o.start(t);o.stop(t+.09);}}
 function pictureCrash(){if(!sound||!audio||audio.state!=='running')return;const t=audio.currentTime,buffer=audio.createBuffer(1,Math.ceil(audio.sampleRate*.6),audio.sampleRate),data=buffer.getChannelData(0);for(let i=0;i<data.length;i++)data[i]=(Math.random()*2-1)*Math.exp(-i/data.length*6);const source=audio.createBufferSource(),filter=audio.createBiquadFilter(),gain=audio.createGain(),v={sources:[source],nodes:[source,filter,gain]};source.buffer=buffer;filter.type='highpass';filter.frequency.value=550;gain.gain.value=.15;source.connect(filter);filter.connect(gain);gain.connect(audio.destination);pictureVoices.add(v);source.onended=()=>{v.nodes.forEach(n=>n.disconnect());pictureVoices.delete(v)};source.start(t);source.stop(t+.62);for(const frequency of [155,1430,2210,3100]){const o=audio.createOscillator(),g=audio.createGain(),entry={sources:[o],nodes:[o,g]};o.type='triangle';o.frequency.value=frequency;g.gain.setValueAtTime(frequency===155?.09:.023,t);g.gain.exponentialRampToValueAtTime(.0001,t+.42);o.connect(g);g.connect(audio.destination);pictureVoices.add(entry);o.onended=()=>{entry.nodes.forEach(n=>n.disconnect());pictureVoices.delete(entry)};o.start(t);o.stop(t+.45);}}
+
+// Proximity dread: seeing the figure up close fills the screen and speakers with static.
+let slenderDread=0,staticVoice=null;
+function stopStatic(){if(!staticVoice)return;try{staticVoice.source.stop()}catch{}for(const node of staticVoice.nodes)node.disconnect();staticVoice=null}
+function updateStatic(level){
+ if(!sound||typeof audio==='undefined'||!audio||audio.state!=='running'||mode!=='playing'||level<.04){stopStatic();return}
+ try{
+  if(!staticVoice){const buffer=audio.createBuffer(1,audio.sampleRate*2,audio.sampleRate),data=buffer.getChannelData(0);for(let i=0;i<data.length;i++)data[i]=(Math.random()*2-1)*(Math.random()<.003?1:.55);
+   const source=audio.createBufferSource(),filter=audio.createBiquadFilter(),gain=audio.createGain();source.buffer=buffer;source.loop=true;filter.type='bandpass';filter.frequency.value=2600;filter.Q.value=.6;gain.gain.value=.0001;source.connect(filter);filter.connect(gain);gain.connect(audio.destination);source.start();staticVoice={source,gain,nodes:[source,filter,gain]}}
+  staticVoice.gain.gain.setTargetAtTime(level*level*.10,audio.currentTime,.08);
+ }catch{stopStatic()}
+}
+function updateSlenderDread(dt){
+ if(!world||!world.enemy){slenderDread=0;stopStatic();return}
+ if(mode!=='playing'){stopStatic();return}
+ const p=world.player,e=world.enemy,d=distance(p,e);let target=0;
+ if(d<6&&sees(p,e)){const angle=p.angle||0,look=((e.x-p.x)*Math.cos(angle)+(e.y-p.y)*Math.sin(angle))/Math.max(d,.001),facing=Math.max(0,Math.min(1,(look-.34)/.56)),near=Math.pow(Math.max(0,Math.min(1,(6-d)/5)),1.5);target=Math.min(1,near*(.3+.7*facing)*(difficulty==='psycho'?1.15:1)+(e.state==='chase'?.08*near:0))}
+ slenderDread+=(target-slenderDread)*Math.min(1,dt*(target>slenderDread?2.5:1.2));if(slenderDread<.002)slenderDread=0;
+ updateStatic(slenderDread);
+}
