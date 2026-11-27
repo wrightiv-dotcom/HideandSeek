@@ -15,7 +15,7 @@ function initGpu(){
   const fragment=`#version 300 es
   precision highp float;precision highp sampler2DArray;
   in vec3 worldPosition;in vec3 worldNormal;in vec3 uv;in vec3 objectPosition;out vec4 color;
-  uniform sampler2DArray materials;uniform sampler2D shadowMap;uniform sampler2D grid;uniform int gridSize;uniform vec3 lampPos[8];uniform int lampCount;uniform float lampLevel;uniform float time;uniform mat4 lightVP;uniform vec2 shadowTexel;uniform vec3 lightEye;uniform vec3 eye;uniform vec3 forward;uniform vec3 tint;uniform float solid;uniform float psycho;uniform float flashlight;uniform float emission;uniform float normalLight;uniform float dread;uniform vec2 resolution;
+  uniform sampler2DArray materials;uniform sampler2D shadowMap;uniform sampler2D grid;uniform int gridSize;uniform vec3 lampPos[8];uniform int lampCount;uniform float lampLevel;uniform float time;uniform mat4 lightVP;uniform vec2 shadowTexel;uniform vec3 lightEye;uniform vec3 eye;uniform vec3 forward;uniform vec3 tint;uniform float solid;uniform float psycho;uniform float flashlight;uniform float emission;uniform float normalLight;uniform float dread;uniform vec2 resolution;uniform float detail;uniform float sculpted;
   float hash(vec3 p){return fract(sin(dot(p,vec3(127.1,311.7,74.7)))*43758.5453);}
   float noise(vec3 p){vec3 i=floor(p),f=fract(p);f=f*f*(3.0-2.0*f);return mix(mix(mix(hash(i),hash(i+vec3(1,0,0)),f.x),mix(hash(i+vec3(0,1,0)),hash(i+vec3(1,1,0)),f.x),f.y),mix(mix(hash(i+vec3(0,0,1)),hash(i+vec3(1,0,1)),f.x),mix(hash(i+vec3(0,1,1)),hash(i+vec3(1,1,1)),f.x),f.y),f.z);}
   // Maze walls stored one texel per cell let lamps respect walls and corners gather occlusion.
@@ -41,24 +41,25 @@ function initGpu(){
    vec3 F=f0+(1.0-f0)*pow(1.0-vdh,5.0);return D*G*F/(4.0*ndv*max(.001,ndl))*ndl;
   }
   void main(){
+   vec3 op=objectPosition*detail;
    vec3 albedo=solid>.5?tint:texture(materials,uv).rgb;
    vec3 geometric=normalize(worldNormal),n=geometric;
    bool faceless=solid>1.5&&solid<2.5,skin=faceless||(solid>4.5&&solid<5.5),tendril=solid>5.5,cloth=solid>2.5&&solid<3.5,metal=solid>3.5&&solid<4.5;
    if(skin){
-    float mottling=noise(objectPosition*10.0)*.65+noise(objectPosition*35.0)*.35;
+    float mottling=noise(op*10.0)*.65+noise(op*35.0)*.35;
     albedo*=faceless?mix(.955,1.02,mottling):mix(.94,1.025,mottling);
-    float vein=pow(1.0-abs(sin(objectPosition.x*38.0+sin(objectPosition.y*24.0)*2.0)),18.0);
-    if(faceless){
-     float front=smoothstep(.12,.7,objectPosition.z);
-     float sockets=exp(-pow((abs(objectPosition.x)-.36)*4.2,2.0)-pow((objectPosition.y-.10)*5.5,2.0))*front;
-     float cheek=exp(-pow((abs(objectPosition.x)-.46)*3.6,2.0)-pow((objectPosition.y+.28)*4.0,2.0))*front;
-     float brow=exp(-pow((objectPosition.y-.31)*8.0,2.0))*front*(1.0-abs(objectPosition.x));
+    float vein=pow(1.0-abs(sin(op.x*38.0+sin(op.y*24.0)*2.0)),18.0);
+    if(faceless&&sculpted<.5){
+     float front=smoothstep(.12,.7,op.z);
+     float sockets=exp(-pow((abs(op.x)-.36)*4.2,2.0)-pow((op.y-.10)*5.5,2.0))*front;
+     float cheek=exp(-pow((abs(op.x)-.46)*3.6,2.0)-pow((op.y+.28)*4.0,2.0))*front;
+     float brow=exp(-pow((op.y-.31)*8.0,2.0))*front*(1.0-abs(op.x));
      albedo=mix(albedo,albedo*vec3(.50,.52,.60),clamp(sockets*.34+cheek*.12,0.0,.4))*(1.0+brow*.05);
-     albedo=mix(albedo,albedo*vec3(.78,.84,1.0),vein*.10*smoothstep(.2,.6,abs(objectPosition.x)));
+     albedo=mix(albedo,albedo*vec3(.78,.84,1.0),vein*.10*smoothstep(.2,.6,abs(op.x)));
     }else albedo*=1.0-vein*.045;
    }
-   if(cloth){float weave=sin(objectPosition.x*460.0)*sin(objectPosition.y*610.0)*clamp(1.0-length(fwidth(objectPosition.xy))*280.0,0.0,1.0);albedo*=.94+weave*.035+noise(objectPosition*32.0)*.10;}
-   albedo=pow(max(albedo,vec3(.0)),vec3(2.2));
+   if(cloth){float weave=sin(op.x*460.0)*sin(op.y*610.0)*clamp(1.0-length(fwidth(op.xy))*280.0,0.0,1.0);albedo*=.94+weave*.035+noise(op*32.0)*.10;}
+   albedo=pow(max(albedo,vec3(.0)),vec3(2.2));if(sculpted>.5)albedo*=uv.x;
    vec3 delta=eye-worldPosition;float dist=length(delta);vec3 v=delta/max(dist,.0001);
    vec3 toLight=lightEye-worldPosition;float lightDist2=dot(toLight,toLight);vec3 l=toLight*inversesqrt(max(lightDist2,.0001));
    if(solid<.5){
@@ -120,7 +121,7 @@ function initGpu(){
   const shader=(type,source)=>{const s=gl.createShader(type);gl.shaderSource(s,source);gl.compileShader(s);if(!gl.getShaderParameter(s,gl.COMPILE_STATUS))throw Error(gl.getShaderInfoLog(s));return s};
   const program=gl.createProgram();gl.attachShader(program,shader(gl.VERTEX_SHADER,vertex));gl.attachShader(program,shader(gl.FRAGMENT_SHADER,fragment));gl.linkProgram(program);if(!gl.getProgramParameter(program,gl.LINK_STATUS))throw Error(gl.getProgramInfoLog(program));
   gl.useProgram(program);
-  const uniforms={};for(const name of ['vp','model','normalMatrix','materials','eye','forward','tint','solid','psycho','flashlight','emission','shadowMap','lightVP','shadowTexel','lightEye','normalLight','grid','gridSize','lampPos','lampCount','lampLevel','time','dread','resolution'])uniforms[name]=gl.getUniformLocation(program,name);
+  const uniforms={};for(const name of ['vp','model','normalMatrix','materials','eye','forward','tint','solid','psycho','flashlight','emission','shadowMap','lightVP','shadowTexel','lightEye','normalLight','grid','gridSize','lampPos','lampCount','lampLevel','time','dread','resolution','detail','sculpted'])uniforms[name]=gl.getUniformLocation(program,name);
   const depthProgram=gl.createProgram();gl.attachShader(depthProgram,shader(gl.VERTEX_SHADER,'#version 300 es\nprecision highp float;layout(location=0) in vec3 position;uniform mat4 vp;uniform mat4 model;void main(){gl_Position=vp*model*vec4(position,1.0);}'));gl.attachShader(depthProgram,shader(gl.FRAGMENT_SHADER,'#version 300 es\nprecision highp float;void main(){}'));gl.linkProgram(depthProgram);if(!gl.getProgramParameter(depthProgram,gl.LINK_STATUS))throw Error(gl.getProgramInfoLog(depthProgram));
   const depthUniforms={vp:gl.getUniformLocation(depthProgram,'vp'),model:gl.getUniformLocation(depthProgram,'model'),normalMatrix:null,tint:null,solid:null,emission:null};
   const shadowSize=deviceMode==='phone'?512:1024,shadowTexture=gl.createTexture();gl.bindTexture(gl.TEXTURE_2D,shadowTexture);gl.texImage2D(gl.TEXTURE_2D,0,gl.DEPTH_COMPONENT24,shadowSize,shadowSize,0,gl.DEPTH_COMPONENT,gl.UNSIGNED_INT,null);gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MIN_FILTER,gl.NEAREST);gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MAG_FILTER,gl.NEAREST);gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_WRAP_S,gl.CLAMP_TO_EDGE);gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_WRAP_T,gl.CLAMP_TO_EDGE);
@@ -170,7 +171,7 @@ function initGpu(){
   const gem=[],ring=[[1,0,0],[0,0,1],[-1,0,0],[0,0,-1]];
   for(const sign of [-1,1])for(let i=0;i<4;i++){const a=[0,sign,0],b=ring[i],c=ring[(i+1)%4],d=b.map((v,j)=>v-a[j]),e=c.map((v,j)=>v-a[j]),n=[d[1]*e[2]-d[2]*e[1],d[2]*e[0]-d[0]*e[2],d[0]*e[1]-d[1]*e[0]],length=Math.hypot(...n);for(const p of [a,b,c])gem.push(...p,...n.map(v=>v/length),0,0,0)}
   GPU={gl,program,uniforms,pictureMeshes,gridTexture,gridSize:0,depthProgram,depthUniforms,shadowTexture,shadowFramebuffer,shadowSize,surface,textures,geometry,sphere:geometry(sphere),survivorCoat:geometry(survivorCoat),survivorHead:geometry(skull),hairCap:geometry(hairCap),keyRing:geometry(keyRing),slenderHead:geometry(slenderSkull),jacketSkirt:geometry(jacketSkirt),slenderSuit:geometry(tailored),sleeve:geometry(sleeve),tube:geometry(tube),lowSphere:geometry(lowSphere),lapels:geometry(lapel),shirt:geometry(shirt),roundBox:geometry(roundBox),coatMale:coatMesh(.15),coatFemale:coatMesh(.23),gem:geometry(gem),scene:null,grid:null,furniture:null};
-  surface.addEventListener('webglcontextlost',event=>{event.preventDefault();GPU=null;gpuUnavailable=true});surface.addEventListener('webglcontextrestored',()=>{GPU=null;gpuUnavailable=false});gl.enable(gl.DEPTH_TEST);gl.disable(gl.CULL_FACE);return GPU;
+  requestCharacterModels();surface.addEventListener('webglcontextlost',event=>{event.preventDefault();GPU=null;gpuUnavailable=true});surface.addEventListener('webglcontextrestored',()=>{GPU=null;gpuUnavailable=false});gl.enable(gl.DEPTH_TEST);gl.disable(gl.CULL_FACE);return GPU;
  }catch(error){console.warn('3D renderer unavailable; using canvas fallback.',error.message);gpuUnavailable=true;return null}
 }
 function gpuMatrixMultiply(a,b){const out=new Float32Array(16);for(let col=0;col<4;col++)for(let row=0;row<4;row++)for(let k=0;k<4;k++)out[col*4+row]+=a[k*4+row]*b[col*4+k];return out}
@@ -237,21 +238,87 @@ function buildGpuScene(g){
 }
 function gpuColor(hex){return [1,3,5].map(i=>parseInt(hex.slice(i,i+2),16)/255)}
 function drawGpuSphere(g,center,scale,color,yaw=0,emission=0,mesh=g.sphere,material=1){
+ gpuSurface(g,1,0);
  const gl=g.gl,u=g.uniforms,c=Math.cos(yaw),s=Math.sin(yaw),model=new Float32Array([c*scale[0],0,-s*scale[0],0,0,scale[1],0,0,s*scale[2],0,c*scale[2],0,...center,1]);
- gl.uniformMatrix4fv(u.model,false,model);gl.uniformMatrix3fv(u.normalMatrix,false,new Float32Array([c/scale[0],0,-s/scale[0],0,1/scale[1],0,s/scale[2],0,c/scale[2]]));gl.uniform3fv(u.tint,color);gl.uniform1f(u.solid,material);gl.uniform1f(u.emission,emission);gl.bindVertexArray(mesh.vao);gl.drawArrays(gl.TRIANGLES,0,mesh.count);
+ gl.uniformMatrix4fv(u.model,false,model);gl.uniformMatrix3fv(u.normalMatrix,false,new Float32Array([c/scale[0],0,-s/scale[0],0,1/scale[1],0,s/scale[2],0,c/scale[2]]));gpuSurface(g,mesh.detail||1,mesh.indexed?1:0);gl.uniform3fv(u.tint,color);gl.uniform1f(u.solid,material);gl.uniform1f(u.emission,emission);gl.bindVertexArray(mesh.vao);if(mesh.indexed)gl.drawElements(gl.TRIANGLES,mesh.count,mesh.indexType,0);else gl.drawArrays(gl.TRIANGLES,0,mesh.count);
 }
 function drawGpuLimb(g,a,b,r,color,material=1,meshOverride=null){
+ gpuSurface(g,1,0);
  const delta=b.map((v,i)=>v-a[i]),length=Math.hypot(...delta),up=delta.map(v=>v/length),helper=Math.abs(up[1])>.95?[1,0,0]:[0,1,0];
  let right=[up[1]*helper[2]-up[2]*helper[1],up[2]*helper[0]-up[0]*helper[2],up[0]*helper[1]-up[1]*helper[0]],size=Math.hypot(...right);right=right.map(v=>v/size);const back=[right[1]*up[2]-right[2]*up[1],right[2]*up[0]-right[0]*up[2],right[0]*up[1]-right[1]*up[0]];
  const model=new Float32Array([...right.map(v=>v*r),0,...up.map(v=>v*length*.6),0,...back.map(v=>v*r),0,...a.map((v,i)=>(v+b[i])/2),1]),gl=g.gl,u=g.uniforms;
  gl.uniformMatrix4fv(u.model,false,model);gl.uniformMatrix3fv(u.normalMatrix,false,new Float32Array([...right.map(v=>v/r),...up.map(v=>v/(length*.6)),...back.map(v=>v/r)]));gl.uniform3fv(u.tint,color);gl.uniform1f(u.solid,material);gl.uniform1f(u.emission,0);const mesh=meshOverride||(material===3?g.sleeve:g.sphere);gl.bindVertexArray(mesh.vao);gl.drawArrays(gl.TRIANGLES,0,mesh.count);
+}
+// Sculpted character models (assets/models/characters.glb, built by scripts/build-character-models.cjs).
+// They load in the background; until then, or if they cannot load, the built-in shapes are drawn.
+let characterModelData=null,characterModelRequest=null;
+function requestCharacterModels(){
+ if(characterModelRequest||typeof fetch!=='function'||typeof location==='undefined'||location.protocol==='file:')return;
+ characterModelRequest=fetch('assets/models/characters.glb').then(response=>{if(!response.ok)throw Error('HTTP '+response.status);return response.arrayBuffer()}).then(buffer=>{characterModelData=parseCharacterModels(buffer)}).catch(error=>console.warn('Sculpted character models not loaded; using built-in shapes.',error.message));
+}
+function parseCharacterModels(buffer){
+ const view=new DataView(buffer);if(view.getUint32(0,true)!==0x46546C67)throw Error('not a glTF binary');
+ const jsonLength=view.getUint32(12,true),json=JSON.parse(new TextDecoder().decode(new Uint8Array(buffer,20,jsonLength))),binStart=20+jsonLength+8;
+ const read=index=>{const a=json.accessors[index],v=json.bufferViews[a.bufferView],Type={5126:Float32Array,5121:Uint8Array,5123:Uint16Array,5125:Uint32Array}[a.componentType];return new Type(buffer,binStart+(v.byteOffset||0)+(a.byteOffset||0),{SCALAR:1,VEC3:3,VEC4:4}[a.type]*a.count)};
+ const models={};
+ for(const mesh of json.meshes){
+  const prim=mesh.primitives[0],P=read(prim.attributes.POSITION),N=read(prim.attributes.NORMAL),C=read(prim.attributes.COLOR_0),bounds=json.accessors[prim.attributes.POSITION],count=P.length/3,data=new Float32Array(count*9);
+  for(let i=0;i<count;i++){const o=i*9;data[o]=P[i*3];data[o+1]=P[i*3+1];data[o+2]=P[i*3+2];data[o+3]=N[i*3];data[o+4]=N[i*3+1];data[o+5]=N[i*3+2];data[o+6]=C[i*4]/255}
+  const extent=Math.max(...bounds.max.map((v,k)=>Math.max(Math.abs(v),Math.abs(bounds.min[k]))));
+  models[mesh.name]={data,indices:read(prim.indices),detail:1/Math.max(extent,.001)};
+ }
+ return models;
+}
+function gpuCharacterModels(g){
+ if(g.models)return g.models;if(!characterModelData){requestCharacterModels();return null}
+ const gl=g.gl,models={};
+ for(const [name,m] of Object.entries(characterModelData)){
+  const vao=gl.createVertexArray(),buffer=gl.createBuffer(),index=gl.createBuffer();gl.bindVertexArray(vao);gl.bindBuffer(gl.ARRAY_BUFFER,buffer);gl.bufferData(gl.ARRAY_BUFFER,m.data,gl.STATIC_DRAW);
+  for(let i=0;i<3;i++){gl.enableVertexAttribArray(i);gl.vertexAttribPointer(i,3,gl.FLOAT,false,36,i*12)}
+  gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER,index);gl.bufferData(gl.ELEMENT_ARRAY_BUFFER,m.indices,gl.STATIC_DRAW);gl.bindVertexArray(null);
+  models[name]={vao,count:m.indices.length,indexed:true,indexType:m.indices instanceof Uint32Array?gl.UNSIGNED_INT:gl.UNSIGNED_SHORT,detail:m.detail};
+ }
+ return g.models=models;
+}
+function gpuSurface(g,detail,sculpted){const u=g.uniforms;g.gl.uniform1f(u.detail,detail);g.gl.uniform1f(u.sculpted,sculpted)}
+// Places a limb part authored hanging down -Y from its joint, stretched to reach the next joint.
+function gpuBone(g,mesh,A,B,length,color,material,S,F,emission=0){
+ if(!mesh)return;const {add,norm}=slenderVec,d=[A[0]-B[0],A[1]-B[1],A[2]-B[2]],l=Math.hypot(...d)||1,Y=[d[0]/l,d[1]/l,d[2]/l],dot=(a,b)=>a[0]*b[0]+a[1]*b[1]+a[2]*b[2];
+ const Z=norm(add(F,Y,-dot(F,Y))),X=norm(add(add(S,Y,-dot(S,Y)),Z,-dot(S,Z)));drawGpuOriented(g,A,X,Y,Z,[1,l/length,1],color,mesh,material,emission);
+}
+// Hand parts are authored with fingers along -Y, palm facing +X (toward the body) and thumb toward +Z.
+function gpuHand(g,mesh,wrist,elbow,sign,color,material,S,F,emission=0){
+ if(!mesh)return;const {add,scale,norm}=slenderVec,dot=(a,b)=>a[0]*b[0]+a[1]*b[1]+a[2]*b[2],fd=norm(add(wrist,elbow,-1)),inward=scale(S,-sign),X=norm(add(inward,fd,-dot(inward,fd))),Z=norm(add(add(F,fd,-dot(F,fd)),X,-dot(F,X)));
+ drawGpuOriented(g,wrist,X,scale(fd,-1),Z,[1,1,1],color,mesh,material,emission);
+}
+function drawGpuSurvivorModel(g,entity,M){
+ const look=entity.profile||getSurvivorProfile(),female=look.gender==='female',tag=female?'f':'m',yaw=entity.angle||0,phase=entity.gaitPhase||0,stride=Math.sin(phase)*(entity.motion||0);
+ const F=[Math.cos(yaw),0,Math.sin(yaw)],S=[-Math.sin(yaw),0,Math.cos(yaw)],U=[0,1,0],bob=Math.abs(stride)*.006+Math.sin((world?.time||0)*1.7)*.001,base=entity.elevation||0;
+ const W=(x,y,z)=>[entity.x+S[0]*x+F[0]*z,base+y+bob,entity.y+S[2]*x+F[2]*z];
+ const skin=gpuColor(look.skin),coat=gpuColor(look.color).map(v=>v*.56+.035),pants=[.075,.10,.115],boots=[.045,.04,.033],hair=[.075,.042,.024],lip=skin.map((v,i)=>v*(i===0?.80:.60));
+ const put=(mesh,at,color,material,sx=1)=>mesh&&drawGpuOriented(g,at,S,U,F,[sx,1,1],color,mesh,material);
+ const narrow=female?.95:1;
+ for(const sign of [-1,1]){
+  const swing=stride*sign*(entity.running?.12:.075),kneeY=.245+Math.max(0,swing)*.20,footY=.035+Math.max(0,swing)*.26;
+  const hip=W(sign*.051,.45,0),knee=W(sign*.052,kneeY,swing),ankle=W(sign*.052,footY+.004,-swing+.004);
+  gpuBone(g,M.survivor_thigh,hip,knee,.205,pants,3,S,F);gpuBone(g,M.survivor_shin,knee,ankle,.21,pants,3,S,F);put(M.survivor_boot,ankle,boots,1);
+  const armSwing=-swing*.65,shoulder=W(sign*.128*narrow,.711,0),elbow=W(sign*.142*narrow,.58,armSwing),wrist=W(sign*.145*narrow,.445,armSwing*.6);
+  gpuBone(g,M.survivor_upper_arm,shoulder,elbow,.135,coat,3,S,F);gpuBone(g,M.survivor_forearm,elbow,wrist,.137,coat,3,S,F);gpuHand(g,M.survivor_hand,wrist,elbow,sign,skin,5,S,F);
+ }
+ const hips=W(0,.445,0);put(M.survivor_pelvis,hips,pants,3,female?.94:1);
+ put(M[`survivor_torso_${look.outfit==='padded'?'padded':'field'}_${tag}`],hips,coat,3);
+ if(look.outfit!=='padded')put(M[`survivor_zip_${tag}`],hips,[.29,.29,.26],4);
+ if(look.outfit==='tactical')put(M[`survivor_vest_${tag}`],hips,[.095,.12,.105],3);
+ put(M.survivor_backpack,hips,[.11,.14,.12],3);
+ const head=W(0,.843,0);put(M[`survivor_head_${tag}`],head,skin,5);put(M.survivor_eyes,head,[.74,.73,.69],1);put(M.survivor_irises,head,[.10,.13,.11],1);put(M[`survivor_brows_${tag}`],head,hair,1);put(M[`survivor_lips_${tag}`],head,lip,5);
+ if(look.hair==='hood')put(M.survivor_hood,head,coat,3);else put(look.hair==='long'?M.survivor_hair_long:female?M.survivor_hair_bob:M.survivor_hair_short,head,hair,1);
 }
 function drawGpuCharacter(g,entity,enemy,p){return enemy?drawGpuSlender(g,entity,p):drawGpuSurvivor(g,entity)}
 function drawGpuOriented(g,center,X,Y,Z,scale,color,mesh,material=1,emission=0){
  const gl=g.gl,u=g.uniforms,[a,b,c]=scale;
  gl.uniformMatrix4fv(u.model,false,new Float32Array([X[0]*a,X[1]*a,X[2]*a,0,Y[0]*b,Y[1]*b,Y[2]*b,0,Z[0]*c,Z[1]*c,Z[2]*c,0,center[0],center[1],center[2],1]));
  gl.uniformMatrix3fv(u.normalMatrix,false,new Float32Array([X[0]/a,X[1]/a,X[2]/a,Y[0]/b,Y[1]/b,Y[2]/b,Z[0]/c,Z[1]/c,Z[2]/c]));
- gl.uniform3fv(u.tint,color);gl.uniform1f(u.solid,material);gl.uniform1f(u.emission,emission);gl.bindVertexArray(mesh.vao);gl.drawArrays(gl.TRIANGLES,0,mesh.count);
+ gpuSurface(g,mesh.detail||1,mesh.indexed?1:0);gl.uniform3fv(u.tint,color);gl.uniform1f(u.solid,material);gl.uniform1f(u.emission,emission);gl.bindVertexArray(mesh.vao);if(mesh.indexed)gl.drawElements(gl.TRIANGLES,mesh.count,mesh.indexType,0);else gl.drawArrays(gl.TRIANGLES,0,mesh.count);
 }
 const slenderVec={add:(a,b,k=1)=>[a[0]+b[0]*k,a[1]+b[1]*k,a[2]+b[2]*k],scale:(a,k)=>[a[0]*k,a[1]*k,a[2]*k],cross:(a,b)=>[a[1]*b[2]-a[2]*b[1],a[2]*b[0]-a[0]*b[2],a[0]*b[1]-a[1]*b[0]],norm:a=>{const l=Math.hypot(...a)||1;return [a[0]/l,a[1]/l,a[2]/l]}};
 let slenderSpread=0,slenderSpreadTime=0;
@@ -266,15 +333,16 @@ function appendGpuTube(data,points,radius,sides=10){
   const nl=Math.hypot(nx,ny,nz)||1;nx/=nl;ny/=nl;nz/=nl;const bx=ty*nz-tz*ny,by=tz*nx-tx*nz,bz=tx*ny-ty*nx,r=radius(i/(count-1)),p=points[i];
   for(let k=0;k<=sides;k++){const angle=k/sides*Math.PI*2,c=Math.cos(angle),sn=Math.sin(angle),dx=nx*c+bx*sn,dy=ny*c+by*sn,dz=nz*c+bz*sn,o=i*stride+k*6;ring[o]=p[0]+dx*r;ring[o+1]=p[1]+dy*r;ring[o+2]=p[2]+dz*r;ring[o+3]=dx;ring[o+4]=dy;ring[o+5]=dz}
  }
- const put=o=>data.push(ring[o],ring[o+1],ring[o+2],ring[o+3],ring[o+4],ring[o+5],0,0,0);
+ const need=data.length+(count-1)*sides*54;if(need>data.buffer.length){const grown=new Float32Array(Math.max(need,data.buffer.length*2));grown.set(data.buffer.subarray(0,data.length));data.buffer=grown}const out=data.buffer;
+ const put=o=>{const w=data.length;out[w]=ring[o];out[w+1]=ring[o+1];out[w+2]=ring[o+2];out[w+3]=ring[o+3];out[w+4]=ring[o+4];out[w+5]=ring[o+5];out[w+6]=0;out[w+7]=0;out[w+8]=0;data.length=w+9};
  for(let i=0;i<count-1;i++)for(let k=0;k<sides;k++){const A=i*stride+k*6,B=A+stride;put(A);put(B);put(B+6);put(A);put(B+6);put(A+6)}
 }
 function flushGpuTubes(g,batches,key){
- const gl=g.gl,u=g.uniforms;
+ const gl=g.gl,u=g.uniforms;gpuSurface(g,12,0);
  if(!g.dynamicTube){const vao=gl.createVertexArray(),buffer=gl.createBuffer();gl.bindVertexArray(vao);gl.bindBuffer(gl.ARRAY_BUFFER,buffer);for(let i=0;i<3;i++){gl.enableVertexAttribArray(i);gl.vertexAttribPointer(i,3,gl.FLOAT,false,36,i*12)}g.dynamicTube={vao,buffer}}
  gl.uniformMatrix4fv(u.model,false,gpuIdentity());gl.uniformMatrix3fv(u.normalMatrix,false,new Float32Array([1,0,0,0,1,0,0,0,1]));gl.uniform1f(u.emission,0);
  gl.bindVertexArray(g.dynamicTube.vao);gl.bindBuffer(gl.ARRAY_BUFFER,g.dynamicTube.buffer);
- if(batches){let total=0;for(const batch of batches.values())total+=batch.data.length;const packed=new Float32Array(total),ranges=[];let offset=0;for(const batch of batches.values()){packed.set(batch.data,offset);ranges.push({color:batch.color,material:batch.material,first:offset/9,count:batch.data.length/9});offset+=batch.data.length}gl.bufferData(gl.ARRAY_BUFFER,packed,gl.DYNAMIC_DRAW);g.dynamicTube.ranges=ranges;g.dynamicTube.key=key}
+ if(batches){let total=0;for(const batch of batches.values())total+=batch.data.length;if(!g.tubePacked||g.tubePacked.length<total)g.tubePacked=new Float32Array(Math.max(total,65536));const packed=g.tubePacked,ranges=[];let offset=0;for(const batch of batches.values()){packed.set(batch.data.buffer.subarray(0,batch.data.length),offset);ranges.push({color:batch.color,material:batch.material,first:offset/9,count:batch.data.length/9});offset+=batch.data.length}gl.bufferData(gl.ARRAY_BUFFER,packed.subarray(0,total),gl.DYNAMIC_DRAW);g.dynamicTube.ranges=ranges;g.dynamicTube.key=key}
  for(const range of g.dynamicTube.ranges){gl.uniform3fv(u.tint,range.color);gl.uniform1f(u.solid,range.material);gl.drawArrays(gl.TRIANGLES,range.first,range.count)}
 }
 // A gaunt, too-tall figure: hunched under the ceiling, sculpted faceless head turned toward the viewer,
@@ -290,14 +358,16 @@ function drawGpuSlender(g,entity,p,options={}){
  const W=(x,y,z)=>[base[0]+S[0]*x+F[0]*z,base[1]+y,base[2]+S[2]*x+F[2]*z];
  const suit=[.020,.021,.025],lapel=[.033,.035,.040],shirt=[.80,.81,.80],tie=[.008,.009,.012],skin=[.82,.83,.83],hand=[.71,.72,.73],shoe=[.012,.012,.013],tendril=[.010,.010,.013];
  const poseKey=[t,entity.x,entity.y,phase,motion,spread,p.x,p.y,p.height,lunge,deviceMode].join(),cached=g.dynamicTube&&g.dynamicTube.key===poseKey;
- const batches=new Map(),tube=(points,radius,color,material,sides=10,smooth=2)=>{if(cached)return;const key=color.join()+'|'+material;if(!batches.has(key))batches.set(key,{color,material,data:[]});appendGpuTube(batches.get(key).data,smooth?slenderSmooth(points,smooth):points,radius,sides)};
+ const batches=new Map(),tube=(points,radius,color,material,sides=10,smooth=2)=>{if(cached)return;const key=color.join()+'|'+material;if(!batches.has(key)){g.tubeStore=g.tubeStore||new Map();const store=g.tubeStore.get(key)||{buffer:new Float32Array(16384),length:0};store.length=0;g.tubeStore.set(key,store);batches.set(key,{color,material,data:store})}appendGpuTube(batches.get(key).data,smooth?slenderSmooth(points,smooth):points,radius,sides)};
  const ball=(c,s,color,material=1,X=S,Y=U,Z=F,mesh=g.sphere)=>drawGpuOriented(g,c,X,Y,Z,s,color,mesh,material);
+ const M=gpuCharacterModels(g)?.slender_head?g.models:null;
  const sides=phone?8:12;
  // Long, thin legs with a gliding, low-lift stride; the trouser tube narrows to the ankle.
  const hipY=.56;
  for(const sign of [-1,1]){
   const swing=stride*sign*(entity.running?.10:.065),lift=Math.max(0,swing)*.10;
   const hip=W(sign*.033,hipY+.02,0),knee=W(sign*.035,.29+lift,.012+swing*.55),ankle=W(sign*.036,.050+lift*.6,-swing*.35+.004);
+  if(M){gpuBone(g,M.slender_thigh,hip,knee,.29,suit,3,S,F);gpuBone(g,M.slender_shin,knee,ankle,.235,suit,3,S,F);drawGpuOriented(g,ankle,S,U,F,[1,1,1],shoe,M.slender_shoe,1);continue}
   tube([hip,knee,ankle],s=>.0215-.0065*s+.0012*Math.exp(-Math.pow((s-.5)/.07,2)),suit,3,sides,3);
   ball(W(sign*.036,.054+lift*.6,-swing*.35+.004),[.0172,.011,.0185],suit,3);
   ball(W(sign*.036,.017+lift*.6,-swing*.35+.026),[.0158,.0128,.046],shoe,1);
@@ -305,6 +375,7 @@ function drawGpuSlender(g,entity,p,options={}){
  // Narrow tailored torso, hunched forward; hunting deepens the stoop.
  const lean=.10+spread*.07+(lunge!==undefined?.18:0),spine=[F[0]*Math.sin(lean),Math.cos(lean),F[2]*Math.sin(lean)],front=[F[0]*Math.cos(lean),-Math.sin(lean),F[2]*Math.cos(lean)];
  const hipC=W(0,hipY,0),torso=.26,top=add(hipC,spine,torso),mid=add(hipC,spine,torso*.5);
+ if(M){drawGpuOriented(g,hipC,S,spine,front,[1,1,1],suit,M.slender_jacket,3);drawGpuOriented(g,hipC,S,spine,front,[1,1,1],shirt,M.slender_shirt,1);drawGpuOriented(g,hipC,S,spine,front,[1,1,1],tie,M.slender_tie,1)}else{
  ball(add(hipC,spine,.012),[.044,.034,.031],suit,3,S,spine,front);
  drawGpuOriented(g,add(hipC,spine,-.022),S,spine,front,[.063,.066,.046],suit,g.jacketSkirt,3);
  drawGpuOriented(g,mid,S,spine,front,[.068,torso*.5,.045],suit,g.slenderSuit,3);
@@ -312,10 +383,10 @@ function drawGpuSlender(g,entity,p,options={}){
  drawGpuOriented(g,mid,S,spine,front,[.068,torso*.5,.045],lapel,g.lapels,3);
  const knot=add(add(top,spine,-.024),front,.050);ball(knot,[.0075,.0085,.006],tie,1,S,spine,front);
  tube([knot,add(add(mid,spine,.02),front,.0515),add(add(mid,spine,-.035),front,.051)],s=>.0042+.0022*s,tie,1,8,1);
- for(const k of [.040,.080])ball(add(add(mid,spine,-k),front,.047),[.0036,.0036,.0024],[.05,.05,.056],4,S,spine,front);
+ for(const k of [.040,.080])ball(add(add(mid,spine,-k),front,.047),[.0036,.0036,.0024],[.05,.05,.056],4,S,spine,front);}
  // Neck and the sculpted, featureless head, always turned to watch the viewer.
  const neckBase=add(top,spine,.004),neckAngle=lean+.42+spread*.12+(lunge!==undefined?.25:0),neckDir=[F[0]*Math.sin(neckAngle),Math.cos(neckAngle),F[2]*Math.sin(neckAngle)],neckTop=add(neckBase,neckDir,.042);
- ball(add(neckBase,neckDir,.006),[.027,.010,.025],shirt,1,S,neckDir,norm(cross(S,neckDir)));
+ if(!M)ball(add(neckBase,neckDir,.006),[.027,.010,.025],shirt,1,S,neckDir,norm(cross(S,neckDir)));
  tube([add(neckBase,neckDir,-.006),neckTop,add(neckTop,neckDir,.016)],s=>.0165-.002*s,skin,5,sides,1);
  const target=options.target||[p.x,p.height??.5,p.y];
  let rel=Math.atan2(target[2]-neckTop[2],target[0]-neckTop[0])-yaw;rel=Math.atan2(Math.sin(rel),Math.cos(rel));rel=Math.max(-1.7,Math.min(1.7,rel));
@@ -323,13 +394,14 @@ function drawGpuSlender(g,entity,p,options={}){
  const twitch=Math.pow(Math.max(0,Math.sin(t*.9+1.3)),40),roll=.20+.07*Math.sin(t*.37)+twitch*.22*Math.sin(t*31)+(lunge!==undefined?Math.sin(t*23)*.10:0);
  const F0=[Math.cos(headYaw),0,Math.sin(headYaw)],S0=[-Math.sin(headYaw),0,Math.cos(headYaw)],F1=add(scale(F0,Math.cos(pitch)),[0,-Math.sin(pitch),0]),U1=add([0,Math.cos(pitch),0],F0,Math.sin(pitch));
  const S2=add(scale(S0,Math.cos(roll)),U1,Math.sin(roll)),U2=add(scale(U1,Math.cos(roll)),S0,-Math.sin(roll));
- drawGpuOriented(g,add(add(neckTop,U2,.060),F1,.004),S2,U2,F1,[.048,.072,.054],skin,g.slenderHead,2,.012);
+ if(M)drawGpuOriented(g,add(add(neckTop,U2,.058),F1,.004),S2,U2,F1,[1,1,1],skin,M.slender_head,2,.012);else drawGpuOriented(g,add(add(neckTop,U2,.060),F1,.004),S2,U2,F1,[.048,.072,.054],skin,g.slenderHead,2,.012);
  // Arms long enough for the fingertips to hang below the knees; they reach forward while hunting.
  for(const sign of [-1,1]){
-  const shoulder=add(add(top,S,sign*.072),spine,-.016);ball(shoulder,[.029,.023,.031],suit,3,S,spine,front);
+  const shoulder=add(add(top,S,sign*.072),spine,-.016);if(!M)ball(shoulder,[.029,.023,.031],suit,3,S,spine,front);
   const joint=add(add(top,S,sign*.079),spine,-.026),armSwing=-stride*sign*.04;
   const elbow=add(joint,add(add(scale(S,sign*.012),scale(F,armSwing+spread*.05)),[0,-.25,0]));
   const reach=.08+spread*.55+(lunge!==undefined?.55:0),fd=norm(add(add(scale(F,Math.sin(reach)),[0,-Math.cos(reach),0]),S,sign*.03)),wrist=add(elbow,fd,.235);
+  if(M){gpuBone(g,M.slender_upper_arm,joint,elbow,.25,suit,3,S,F);gpuBone(g,M.slender_forearm,elbow,wrist,.232,suit,3,S,F);gpuBone(g,M.slender_cuff,elbow,wrist,.232,shirt,1,S,F);gpuHand(g,spread>.5?M.slender_hand_claw:M.slender_hand_relaxed,wrist,elbow,sign,hand,5,S,F);continue}
   tube([joint,elbow,wrist],s=>.0162-.0042*s,suit,3,sides,3);
   const across=norm(cross(fd,scale(S,-sign))),inward=cross(across,fd);
   drawGpuOriented(g,add(wrist,fd,-.004),inward,fd,across,[.0132,.0068,.0132],shirt,g.sphere,1);
@@ -365,6 +437,7 @@ function drawGpuKey(g,key){
  for(const x of [.07,.12])drawGpuSphere(g,[key.x+x,height-.023,key.y],[.012,.028,.010],color,0,.10,g.roundBox,4);
 }
 function drawGpuSurvivor(g,entity){
+ const sculpted=gpuCharacterModels(g);if(sculpted?.survivor_head_m)return drawGpuSurvivorModel(g,entity,sculpted);
  const appearance=entity.profile||getSurvivorProfile(),yaw=entity.angle||0,phase=entity.gaitPhase||0,stride=Math.sin(phase)*(entity.motion||0),front=[Math.cos(yaw),Math.sin(yaw)],side=[-front[1],front[0]],base=entity.elevation||0,bob=Math.abs(stride)*.006+Math.sin((world.time||0)*1.7)*.001;
  const skin=gpuColor(appearance.skin),coat=gpuColor(appearance.color).map(v=>v*.56+.035),pants=[.075,.10,.115],boots=[.045,.04,.033],hair=[.075,.042,.024],seam=coat.map(v=>v*.58),lip=skin.map((v,i)=>v*(i===0?.72:.49));
  const local=(x,y,z)=>[entity.x+side[0]*x+front[0]*z,base+y+bob,entity.y+side[1]*x+front[1]*z];
@@ -423,6 +496,10 @@ function drawGpuFlashlight(g,p){
  const sphere=(x,y,z,scale,color,glow=baseGlow)=>drawGpuSphere(g,local(x,y,z),scale,color,-yaw+Math.PI/2,glow);
  const limb=(a,b,radius,color)=>drawGpuLimb(g,local(...a),local(...b),radius,color,3);
  g.gl.clear(g.gl.DEPTH_BUFFER_BIT);
+ const M=gpuCharacterModels(g);
+ if(M?.fp_flashlight){const {add,scale,norm}=slenderVec,S3=[r[0],0,r[1]],F3=[f[0],0,f[1]],axis=norm(add(scale([0,1,0],.731),F3,.682)),across=norm(add(scale([0,1,0],-.682),F3,.731)),tail=local(.12,-.165,.25);
+  gpuBone(g,M.survivor_forearm,local(.135,-.35,.115),local(.12,-.23,.241),.137,sleeve,3,S3,F3,baseGlow*.5);
+  drawGpuOriented(g,tail,S3,axis,across,[1,1,1],metal,M.fp_flashlight,4,baseGlow*.4);drawGpuOriented(g,tail,S3,axis,across,[1,1,1],[.72,.80,.81],M.fp_lens,1,flashlightOn?.75:baseGlow);drawGpuOriented(g,tail,S3,axis,across,[1,1,1],skin,M.fp_hand,5,baseGlow*.3);return}
  limb([.13,-.28,.11],[.125,-.16,.23],.038,sleeve);sphere(.125,-.165,.235,[.039,.048,.036],skin);
  limb([.125,-.18,.24],[.125,-.105,.31],.022,metal);
  for(let i=0;i<8;i++)sphere(.125,-.172+i*.007,.245+i*.0065,[.024,.003,.022],[.16,.18,.185]);
