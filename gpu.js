@@ -43,7 +43,7 @@ function initGpu(){
   void main(){
    vec3 albedo=solid>.5?tint:texture(materials,uv).rgb;
    vec3 geometric=normalize(worldNormal),n=geometric;
-   bool faceless=solid>1.5&&solid<2.5,skin=faceless||solid>4.5,cloth=solid>2.5&&solid<3.5,metal=solid>3.5&&solid<4.5;
+   bool faceless=solid>1.5&&solid<2.5,skin=faceless||(solid>4.5&&solid<5.5),tendril=solid>5.5,cloth=solid>2.5&&solid<3.5,metal=solid>3.5&&solid<4.5;
    if(skin){
     float mottling=noise(objectPosition*10.0)*.65+noise(objectPosition*35.0)*.35;
     albedo*=faceless?mix(.955,1.02,mottling):mix(.94,1.025,mottling);
@@ -53,11 +53,8 @@ function initGpu(){
      float sockets=exp(-pow((abs(objectPosition.x)-.36)*4.2,2.0)-pow((objectPosition.y-.10)*5.5,2.0))*front;
      float cheek=exp(-pow((abs(objectPosition.x)-.46)*3.6,2.0)-pow((objectPosition.y+.28)*4.0,2.0))*front;
      float brow=exp(-pow((objectPosition.y-.31)*8.0,2.0))*front*(1.0-abs(objectPosition.x));
-     albedo=mix(albedo,albedo*vec3(.50,.52,.60),clamp(sockets*.62+cheek*.22,0.0,.62))*(1.0+brow*.05);
+     albedo=mix(albedo,albedo*vec3(.50,.52,.60),clamp(sockets*.34+cheek*.12,0.0,.4))*(1.0+brow*.05);
      albedo=mix(albedo,albedo*vec3(.78,.84,1.0),vein*.10*smoothstep(.2,.6,abs(objectPosition.x)));
-     float relief=(-sockets*.12-cheek*.05+brow*.035)*.05;
-     vec3 reliefGradient=dFdx(relief)*cross(dFdy(worldPosition),n)+dFdy(relief)*cross(n,dFdx(worldPosition));float reliefDet=dot(dFdx(worldPosition),cross(dFdy(worldPosition),n));
-     n=normalize(n-sign(reliefDet)*reliefGradient/(abs(reliefDet)+1e-10));
     }else albedo*=1.0-vein*.045;
    }
    if(cloth){float weave=sin(objectPosition.x*460.0)*sin(objectPosition.y*610.0)*clamp(1.0-length(fwidth(objectPosition.xy))*280.0,0.0,1.0);albedo*=.94+weave*.035+noise(objectPosition*32.0)*.10;}
@@ -68,7 +65,7 @@ function initGpu(){
     float height=dot(albedo,vec3(.299,.587,.114));vec3 surfaceGradient=dFdx(height)*cross(dFdy(worldPosition),n)+dFdy(height)*cross(n,dFdx(worldPosition));float determinant=dot(dFdx(worldPosition),cross(dFdy(worldPosition),n));n=normalize(n-sign(determinant)*surfaceGradient*.06/(abs(determinant)+.0001));
    }
    float wet=solid<.5&&uv.z>13.5&&uv.z<14.5?smoothstep(.65,.85,noise(worldPosition*2.0))*.25:0.0;
-   float roughness=faceless?.40:skin?.55:cloth?.94:metal?.30:solid<.5?(uv.z>=15.0&&uv.z<21.0?.22:mix(.78,.30,wet)):.65;
+   float roughness=faceless?.40:skin?.55:tendril?.32:cloth?.94:metal?.30:solid<.5?(uv.z>=15.0&&uv.z<21.0?.22:mix(.78,.30,wet)):.65;
    vec3 f0=metal?mix(vec3(.35),albedo,.6):vec3(.04);
    float occlusion=solid<.5?gridOcclusion(worldPosition,geometric):1.0;
    float contact=1.0-.30*exp(-max(worldPosition.y,0.0)*24.0)*(1.0-abs(n.y));
@@ -79,14 +76,17 @@ function initGpu(){
    float visibility=1.0;vec4 shadowClip=lightVP*vec4(worldPosition,1.0);vec3 shadowUV=shadowClip.xyz/shadowClip.w*.5+.5;
    if(flashlight>.5&&shadowClip.w>0.0&&all(greaterThan(shadowUV,vec3(0)))&&all(lessThan(shadowUV,vec3(1)))){visibility=0.0;float bias=.00008+.00016*(1.0-max(0.0,dot(n,l)));for(int y=-1;y<=1;y++)for(int x=-1;x<=1;x++){float depth=texture(shadowMap,shadowUV.xy+vec2(x,y)*shadowTexel).r;visibility+=shadowUV.z-bias<=depth?1.0/9.0:0.0;}}
    vec3 torch=vec3(1.0,.94,.84)*flashlight*beam*visibility*2.6/(lightDist2+.30);
-   float ndl=max(0.0,dot(n,l));
+   float ndl=skin?max(0.0,(dot(n,l)+.3)/1.3):max(0.0,dot(n,l));
    vec3 lit=albedo*torch*(ndl+.04)+specular(n,v,l,roughness,f0)*torch*.9;
+   float sheen=pow(1.0-max(0.0,dot(n,v)),5.0);
+   if(cloth)lit+=torch*vec3(.55,.58,.65)*sheen*max(0.0,dot(n,l))*.35;
+   if(tendril)lit+=torch*vec3(.30,.32,.36)*sheen*.25;
    // Ceiling lamps: warm tungsten point lights, shaded downward, blocked by maze walls.
    vec2 probe=worldPosition.xz+geometric.xz*.03;
    for(int i=0;i<8;i++){
     if(i>=lampCount||lampLevel<=0.0)break;
     vec3 L=lampPos[i]-worldPosition;float d2=dot(L,L);if(d2>18.0)continue;
-    vec3 ld=L*inversesqrt(d2);float lndl=max(0.0,dot(n,ld));if(lndl<=0.0&&!skin)continue;
+    vec3 ld=L*inversesqrt(d2);float lndl=skin?max(0.0,(dot(n,ld)+.3)/1.3):max(0.0,dot(n,ld));if(lndl<=0.0)continue;
     if(lineOfSight(probe,lampPos[i].xz)<.5)continue;
     float window=pow(clamp(1.0-pow(d2/18.0,2.0),0.0,1.0),2.0),shade=.16+.84*smoothstep(-.05,.65,ld.y);
     vec3 radiance=vec3(1.0,.71,.44)*lampLevel*1.05*shade*window/(d2+.12);
@@ -150,6 +150,11 @@ function initGpu(){
   const sleeve=[];addSurface(sleeve,(v,a)=>{const y=v*2-1,r=Math.sqrt(Math.max(0,1-Math.pow(Math.abs(y),16)))*(1-.12*y);return [Math.cos(a)*r,y,Math.sin(a)*r]},24,24);
   const tube=[];addSurface(tube,(v,a)=>{const y=v*2-1,r=Math.sqrt(Math.max(0,1-Math.pow(Math.abs(y),8)));return [Math.cos(a)*r,y,Math.sin(a)*r]},10,12);
   const lowSphere=[];for(let y=0;y<8;y++)for(let x=0;x<12;x++){const a=y*Math.PI/8,b=x*Math.PI*2/12,A=(y+1)*Math.PI/8,B=(x+1)*Math.PI*2/12;for(const p of [point(a,b),point(A,b),point(A,B),point(a,b),point(A,B),point(a,B)])lowSphere.push(...p,...p,0,0,0)}
+  const slenderSkull=[];addSurface(slenderSkull,(v,a)=>{const phi=(.998-v*.996)*Math.PI,bell=(u,c,w)=>Math.exp(-Math.pow((u-c)/w,2));let x=Math.sin(phi)*Math.cos(a),y=Math.cos(phi),z=Math.sin(phi)*Math.sin(a);
+   const face=Math.max(0,z),ax=Math.abs(x);if(y<0){x*=1-.38*Math.pow(-y,1.25);z*=1-.14*(-y)}z-=.10*face*face*z;
+   z+=face*(-.14*bell(ax,.33,.16)*bell(y,.12,.14)+.05*bell(y,.31,.075)*(1-.6*ax)+.05*bell(x,0,.075)*bell(y,-.05,.21)-.018*bell(x,0,.25)*bell(y,-.43,.08)+.04*bell(y,-.84,.12)*bell(x,0,.3));
+   x+=Math.sign(x)*(.05*bell(ax,.55,.15)*bell(y,-.08,.13)*face-.045*bell(y,.24,.16)*bell(z,.25,.3)*Math.max(0,ax-.5));return [x,y,z]},48,64);
+  const jacketSkirt=[];{const rows=6,cols=30,gap=.38,start=Math.PI/2+gap,span=Math.PI*2-gap*2,P=(j,k)=>{const v=j/rows,a=start+k/cols*span,r=1+.22*v,n=[Math.cos(a),.11,Math.sin(a)*.8],l=Math.hypot(...n);return [[Math.cos(a)*r,1-2*v,Math.sin(a)*r*.8],n.map(x=>x/l)]};for(let j=0;j<rows;j++)for(let k=0;k<cols;k++)for(const [J,K] of [[j,k],[j+1,k],[j+1,k+1],[j,k],[j+1,k+1],[j,k+1]]){const [p,n]=P(J,K);jacketSkirt.push(...p,...n,0,0,0)}}
   const roundBox=[];
   const rounded=p=>{const core=p.map(v=>Math.max(-.78,Math.min(.78,v))),offset=p.map((v,i)=>v-core[i]),length=Math.hypot(...offset),n=offset.map(v=>v/length);return {p:core.map((v,i)=>v+n[i]*.22),n}};
   for(let face=0;face<6;face++)for(let y=0;y<8;y++)for(let x=0;x<8;x++){
@@ -164,7 +169,7 @@ function initGpu(){
   const coatMesh=amount=>{const data=roundBox.slice();for(let i=0;i<data.length;i+=9){const y=data[i+1],factor=1-amount+amount*Math.abs(y),x=data[i];data[i]*=factor;data[i+4]-=data[i+3]*x*amount*Math.sign(y)/factor;data[i+3]/=factor}return geometry(data)};
   const gem=[],ring=[[1,0,0],[0,0,1],[-1,0,0],[0,0,-1]];
   for(const sign of [-1,1])for(let i=0;i<4;i++){const a=[0,sign,0],b=ring[i],c=ring[(i+1)%4],d=b.map((v,j)=>v-a[j]),e=c.map((v,j)=>v-a[j]),n=[d[1]*e[2]-d[2]*e[1],d[2]*e[0]-d[0]*e[2],d[0]*e[1]-d[1]*e[0]],length=Math.hypot(...n);for(const p of [a,b,c])gem.push(...p,...n.map(v=>v/length),0,0,0)}
-  GPU={gl,program,uniforms,pictureMeshes,gridTexture,gridSize:0,depthProgram,depthUniforms,shadowTexture,shadowFramebuffer,shadowSize,surface,textures,geometry,sphere:geometry(sphere),survivorCoat:geometry(survivorCoat),survivorHead:geometry(skull),hairCap:geometry(hairCap),keyRing:geometry(keyRing),slenderHead:geometry(skull),slenderSuit:geometry(tailored),sleeve:geometry(sleeve),tube:geometry(tube),lowSphere:geometry(lowSphere),lapels:geometry(lapel),shirt:geometry(shirt),roundBox:geometry(roundBox),coatMale:coatMesh(.15),coatFemale:coatMesh(.23),gem:geometry(gem),scene:null,grid:null,furniture:null};
+  GPU={gl,program,uniforms,pictureMeshes,gridTexture,gridSize:0,depthProgram,depthUniforms,shadowTexture,shadowFramebuffer,shadowSize,surface,textures,geometry,sphere:geometry(sphere),survivorCoat:geometry(survivorCoat),survivorHead:geometry(skull),hairCap:geometry(hairCap),keyRing:geometry(keyRing),slenderHead:geometry(slenderSkull),jacketSkirt:geometry(jacketSkirt),slenderSuit:geometry(tailored),sleeve:geometry(sleeve),tube:geometry(tube),lowSphere:geometry(lowSphere),lapels:geometry(lapel),shirt:geometry(shirt),roundBox:geometry(roundBox),coatMale:coatMesh(.15),coatFemale:coatMesh(.23),gem:geometry(gem),scene:null,grid:null,furniture:null};
   surface.addEventListener('webglcontextlost',event=>{event.preventDefault();GPU=null;gpuUnavailable=true});surface.addEventListener('webglcontextrestored',()=>{GPU=null;gpuUnavailable=false});gl.enable(gl.DEPTH_TEST);gl.disable(gl.CULL_FACE);return GPU;
  }catch(error){console.warn('3D renderer unavailable; using canvas fallback.',error.message);gpuUnavailable=true;return null}
 }
@@ -250,9 +255,32 @@ function drawGpuOriented(g,center,X,Y,Z,scale,color,mesh,material=1,emission=0){
 }
 const slenderVec={add:(a,b,k=1)=>[a[0]+b[0]*k,a[1]+b[1]*k,a[2]+b[2]*k],scale:(a,k)=>[a[0]*k,a[1]*k,a[2]*k],cross:(a,b)=>[a[1]*b[2]-a[2]*b[1],a[2]*b[0]-a[0]*b[2],a[0]*b[1]-a[1]*b[0]],norm:a=>{const l=Math.hypot(...a)||1;return [a[0]/l,a[1]/l,a[2]/l]}};
 let slenderSpread=0,slenderSpreadTime=0;
-// A gaunt, too-tall figure: hunched under the ceiling, faceless head turned toward the viewer,
+// Corner-cutting subdivision turns a few joint positions into a smooth curve.
+function slenderSmooth(points,iterations=2){let list=points;for(let k=0;k<iterations;k++){const out=[list[0]];for(let i=0;i<list.length-1;i++){const a=list[i],b=list[i+1];out.push(a.map((v,j)=>v*.75+b[j]*.25),a.map((v,j)=>v*.25+b[j]*.75))}out.push(list[list.length-1]);list=out}return list}
+// One continuous tapered tube along a curve, with parallel-transported rings (no beaded joints).
+function appendGpuTube(data,points,radius,sides=10){
+ const count=points.length,stride=(sides+1)*6,ring=new Float32Array(count*stride);let nx=0,ny=0,nz=0;
+ for(let i=0;i<count;i++){
+  const a=points[Math.max(0,i-1)],b=points[Math.min(count-1,i+1)];let tx=b[0]-a[0],ty=b[1]-a[1],tz=b[2]-a[2];const tl=Math.hypot(tx,ty,tz)||1;tx/=tl;ty/=tl;tz/=tl;
+  if(i===0){const hx=Math.abs(ty)>.9?1:0,hy=Math.abs(ty)>.9?0:1,cx=ty*0-tz*hy,cy=tz*hx-tx*0,cz=tx*hy-ty*hx;nx=cy*tz-cz*ty;ny=cz*tx-cx*tz;nz=cx*ty-cy*tx}else{const d=nx*tx+ny*ty+nz*tz;nx-=tx*d;ny-=ty*d;nz-=tz*d}
+  const nl=Math.hypot(nx,ny,nz)||1;nx/=nl;ny/=nl;nz/=nl;const bx=ty*nz-tz*ny,by=tz*nx-tx*nz,bz=tx*ny-ty*nx,r=radius(i/(count-1)),p=points[i];
+  for(let k=0;k<=sides;k++){const angle=k/sides*Math.PI*2,c=Math.cos(angle),sn=Math.sin(angle),dx=nx*c+bx*sn,dy=ny*c+by*sn,dz=nz*c+bz*sn,o=i*stride+k*6;ring[o]=p[0]+dx*r;ring[o+1]=p[1]+dy*r;ring[o+2]=p[2]+dz*r;ring[o+3]=dx;ring[o+4]=dy;ring[o+5]=dz}
+ }
+ const put=o=>data.push(ring[o],ring[o+1],ring[o+2],ring[o+3],ring[o+4],ring[o+5],0,0,0);
+ for(let i=0;i<count-1;i++)for(let k=0;k<sides;k++){const A=i*stride+k*6,B=A+stride;put(A);put(B);put(B+6);put(A);put(B+6);put(A+6)}
+}
+function flushGpuTubes(g,batches,key){
+ const gl=g.gl,u=g.uniforms;
+ if(!g.dynamicTube){const vao=gl.createVertexArray(),buffer=gl.createBuffer();gl.bindVertexArray(vao);gl.bindBuffer(gl.ARRAY_BUFFER,buffer);for(let i=0;i<3;i++){gl.enableVertexAttribArray(i);gl.vertexAttribPointer(i,3,gl.FLOAT,false,36,i*12)}g.dynamicTube={vao,buffer}}
+ gl.uniformMatrix4fv(u.model,false,gpuIdentity());gl.uniformMatrix3fv(u.normalMatrix,false,new Float32Array([1,0,0,0,1,0,0,0,1]));gl.uniform1f(u.emission,0);
+ gl.bindVertexArray(g.dynamicTube.vao);gl.bindBuffer(gl.ARRAY_BUFFER,g.dynamicTube.buffer);
+ if(batches){let total=0;for(const batch of batches.values())total+=batch.data.length;const packed=new Float32Array(total),ranges=[];let offset=0;for(const batch of batches.values()){packed.set(batch.data,offset);ranges.push({color:batch.color,material:batch.material,first:offset/9,count:batch.data.length/9});offset+=batch.data.length}gl.bufferData(gl.ARRAY_BUFFER,packed,gl.DYNAMIC_DRAW);g.dynamicTube.ranges=ranges;g.dynamicTube.key=key}
+ for(const range of g.dynamicTube.ranges){gl.uniform3fv(u.tint,range.color);gl.uniform1f(u.solid,range.material);gl.drawArrays(gl.TRIANGLES,range.first,range.count)}
+}
+// A gaunt, too-tall figure: hunched under the ceiling, sculpted faceless head turned toward the viewer,
 // arms hanging past the knees, long jointed fingers and back tendrils that unfurl during a chase.
 function drawGpuSlender(g,entity,p,options={}){
+ if(options.lunge===undefined&&world?.grid&&typeof wall==='function'){const clear=(b)=>{const d=Math.hypot(b.x-p.x,b.y-p.y);for(let k=.1;k<d;k+=.1)if(wall(p.x+(b.x-p.x)*k/d,p.y+(b.y-p.y)*k/d))return false;return true};const dx=entity.x-p.x,dy=entity.y-p.y,d=Math.hypot(dx,dy);if(d>1.2){const ahead=(dx*Math.cos(p.angle||0)+dy*Math.sin(p.angle||0))/d;if(ahead<-.35)return;const ox=-dy/d*.4,oy=dx/d*.4;if(!clear(entity)&&!clear({x:entity.x+ox,y:entity.y+oy})&&!clear({x:entity.x-ox,y:entity.y-oy}))return}}
  const {add,scale,cross,norm}=slenderVec,t=options.time??(world?.time||0),lunge=options.lunge,phone=deviceMode==='phone';
  const hunting=lunge!==undefined||entity.state==='chase';
  if(t!==slenderSpreadTime){const dt=Math.min(.1,Math.abs(t-slenderSpreadTime));slenderSpread+=((hunting?1:0)-slenderSpread)*Math.min(1,dt*2.2);slenderSpreadTime=t}
@@ -260,66 +288,74 @@ function drawGpuSlender(g,entity,p,options={}){
  const yaw=entity.moveAngle??Math.atan2(p.y-entity.y,p.x-entity.x),F=[Math.cos(yaw),0,Math.sin(yaw)],S=[-Math.sin(yaw),0,Math.cos(yaw)],U=[0,1,0];
  const sway=Math.sin(phase)*motion*.006,base=[entity.x+S[0]*sway,entity.elevation||0,entity.y+S[2]*sway];
  const W=(x,y,z)=>[base[0]+S[0]*x+F[0]*z,base[1]+y,base[2]+S[2]*x+F[2]*z];
- const suit=[.021,.022,.026],lapel=[.034,.036,.041],shirt=[.80,.81,.80],tie=[.008,.009,.012],skin=[.83,.84,.83],hand=[.70,.71,.70],shoe=[.012,.012,.013],tendril=[.009,.010,.012];
- const limb=(a,b,r,color,material=1,mesh=g.tube)=>drawGpuLimb(g,a,b,r,color,material,mesh);
+ const suit=[.020,.021,.025],lapel=[.033,.035,.040],shirt=[.80,.81,.80],tie=[.008,.009,.012],skin=[.82,.83,.83],hand=[.71,.72,.73],shoe=[.012,.012,.013],tendril=[.010,.010,.013];
+ const poseKey=[t,entity.x,entity.y,phase,motion,spread,p.x,p.y,p.height,lunge,deviceMode].join(),cached=g.dynamicTube&&g.dynamicTube.key===poseKey;
+ const batches=new Map(),tube=(points,radius,color,material,sides=10,smooth=2)=>{if(cached)return;const key=color.join()+'|'+material;if(!batches.has(key))batches.set(key,{color,material,data:[]});appendGpuTube(batches.get(key).data,smooth?slenderSmooth(points,smooth):points,radius,sides)};
  const ball=(c,s,color,material=1,X=S,Y=U,Z=F,mesh=g.sphere)=>drawGpuOriented(g,c,X,Y,Z,s,color,mesh,material);
- // Long, thin legs with a gliding, low-lift stride.
+ const sides=phone?8:12;
+ // Long, thin legs with a gliding, low-lift stride; the trouser tube narrows to the ankle.
  const hipY=.56;
  for(const sign of [-1,1]){
   const swing=stride*sign*(entity.running?.10:.065),lift=Math.max(0,swing)*.10;
-  const hip=W(sign*.033,hipY,0),knee=W(sign*.035,.29+lift,.012+swing*.55),ankle=W(sign*.036,.052+lift*.6,-swing*.35+.004);
-  limb(hip,knee,.020,suit,3,g.sleeve);limb(knee,ankle,.0158,suit,3,g.sleeve);ball(knee,[.0185,.019,.0195],suit,3);
-  ball(W(sign*.036,.056+lift*.6,-swing*.35+.004),[.018,.012,.019],suit,3);
-  ball(W(sign*.036,.019+lift*.6,-swing*.35+.028),[.0175,.0155,.052],shoe,4);
+  const hip=W(sign*.033,hipY+.02,0),knee=W(sign*.035,.29+lift,.012+swing*.55),ankle=W(sign*.036,.050+lift*.6,-swing*.35+.004);
+  tube([hip,knee,ankle],s=>.0215-.0065*s+.0012*Math.exp(-Math.pow((s-.5)/.07,2)),suit,3,sides,3);
+  ball(W(sign*.036,.054+lift*.6,-swing*.35+.004),[.0172,.011,.0185],suit,3);
+  ball(W(sign*.036,.017+lift*.6,-swing*.35+.026),[.0158,.0128,.046],shoe,1);
  }
  // Narrow tailored torso, hunched forward; hunting deepens the stoop.
  const lean=.10+spread*.07+(lunge!==undefined?.18:0),spine=[F[0]*Math.sin(lean),Math.cos(lean),F[2]*Math.sin(lean)],front=[F[0]*Math.cos(lean),-Math.sin(lean),F[2]*Math.cos(lean)];
  const hipC=W(0,hipY,0),torso=.26,top=add(hipC,spine,torso),mid=add(hipC,spine,torso*.5);
  ball(add(hipC,spine,.012),[.044,.034,.031],suit,3,S,spine,front);
- ball(add(hipC,spine,-.012),[.064,.036,.043],suit,3,S,spine,front,g.roundBox);
+ drawGpuOriented(g,add(hipC,spine,-.022),S,spine,front,[.063,.066,.046],suit,g.jacketSkirt,3);
  drawGpuOriented(g,mid,S,spine,front,[.068,torso*.5,.045],suit,g.slenderSuit,3);
  drawGpuOriented(g,add(mid,spine,.046),S,spine,front,[.050,.083,.046],shirt,g.shirt,1);
  drawGpuOriented(g,mid,S,spine,front,[.068,torso*.5,.045],lapel,g.lapels,3);
  const knot=add(add(top,spine,-.024),front,.050);ball(knot,[.0075,.0085,.006],tie,1,S,spine,front);
- limb(knot,add(add(mid,spine,-.035),front,.051),.0052,tie,1);
+ tube([knot,add(add(mid,spine,.02),front,.0515),add(add(mid,spine,-.035),front,.051)],s=>.0042+.0022*s,tie,1,8,1);
  for(const k of [.040,.080])ball(add(add(mid,spine,-k),front,.047),[.0036,.0036,.0024],[.05,.05,.056],4,S,spine,front);
- // Neck and the blank, porcelain head, always turned to watch the viewer.
+ // Neck and the sculpted, featureless head, always turned to watch the viewer.
  const neckBase=add(top,spine,.004),neckAngle=lean+.42+spread*.12+(lunge!==undefined?.25:0),neckDir=[F[0]*Math.sin(neckAngle),Math.cos(neckAngle),F[2]*Math.sin(neckAngle)],neckTop=add(neckBase,neckDir,.042);
  ball(add(neckBase,neckDir,.006),[.027,.010,.025],shirt,1,S,neckDir,norm(cross(S,neckDir)));
- limb(neckBase,neckTop,.0158,skin,5);
+ tube([add(neckBase,neckDir,-.006),neckTop,add(neckTop,neckDir,.016)],s=>.0165-.002*s,skin,5,sides,1);
  const target=options.target||[p.x,p.height??.5,p.y];
  let rel=Math.atan2(target[2]-neckTop[2],target[0]-neckTop[0])-yaw;rel=Math.atan2(Math.sin(rel),Math.cos(rel));rel=Math.max(-1.7,Math.min(1.7,rel));
  const headYaw=yaw+rel,flat=Math.hypot(target[0]-neckTop[0],target[2]-neckTop[2]),pitch=Math.max(-.2,Math.min(.75,Math.atan2(neckTop[1]+.05-target[1],flat)));
  const twitch=Math.pow(Math.max(0,Math.sin(t*.9+1.3)),40),roll=.20+.07*Math.sin(t*.37)+twitch*.22*Math.sin(t*31)+(lunge!==undefined?Math.sin(t*23)*.10:0);
  const F0=[Math.cos(headYaw),0,Math.sin(headYaw)],S0=[-Math.sin(headYaw),0,Math.cos(headYaw)],F1=add(scale(F0,Math.cos(pitch)),[0,-Math.sin(pitch),0]),U1=add([0,Math.cos(pitch),0],F0,Math.sin(pitch));
  const S2=add(scale(S0,Math.cos(roll)),U1,Math.sin(roll)),U2=add(scale(U1,Math.cos(roll)),S0,-Math.sin(roll));
- drawGpuOriented(g,add(add(neckTop,U2,.060),F1,.006),S2,U2,F1,[.047,.072,.052],skin,g.slenderHead,2,.012);
+ drawGpuOriented(g,add(add(neckTop,U2,.060),F1,.004),S2,U2,F1,[.048,.072,.054],skin,g.slenderHead,2,.012);
  // Arms long enough for the fingertips to hang below the knees; they reach forward while hunting.
  for(const sign of [-1,1]){
   const shoulder=add(add(top,S,sign*.072),spine,-.016);ball(shoulder,[.029,.023,.031],suit,3,S,spine,front);
   const joint=add(add(top,S,sign*.079),spine,-.026),armSwing=-stride*sign*.04;
   const elbow=add(joint,add(add(scale(S,sign*.012),scale(F,armSwing+spread*.05)),[0,-.25,0]));
   const reach=.08+spread*.55+(lunge!==undefined?.55:0),fd=norm(add(add(scale(F,Math.sin(reach)),[0,-Math.cos(reach),0]),S,sign*.03)),wrist=add(elbow,fd,.235);
-  limb(joint,elbow,.0155,suit,3,g.sleeve);ball(elbow,[.0148,.015,.0148],suit,3);limb(elbow,wrist,.0128,suit,3,g.sleeve);
+  tube([joint,elbow,wrist],s=>.0162-.0042*s,suit,3,sides,3);
   const across=norm(cross(fd,scale(S,-sign))),inward=cross(across,fd);
   drawGpuOriented(g,add(wrist,fd,-.004),inward,fd,across,[.0132,.0068,.0132],shirt,g.sphere,1);
+  tube([add(wrist,fd,-.002),add(wrist,fd,.012)],s=>.0078+.001*s,hand,5,sides,0);
   const palm=add(wrist,fd,.026);drawGpuOriented(g,palm,inward,fd,across,[.0072,.027,.0152],hand,g.sphere,5);
   const curl=.24-spread*.15;
   for(let i=0;i<4;i++){
-   let at=add(add(palm,fd,.023),across,(i-1.5)*.0082);const splay=norm(add(fd,across,(i-1.5)*.12*(1+spread*1.5))),lengths=[.034,.027,.021],radii=[.0034,.0029,.0024],shorter=i===0||i===3?.86:1;
-   for(let k=0;k<3;k++){const bend=(curl+.05*Math.sin(t*2.7+i*1.3+sign))*(k+1),dir=norm(add(scale(splay,Math.cos(bend)),inward,Math.sin(bend))),next=add(at,dir,lengths[k]*shorter);limb(at,next,radii[k],hand,5);ball(at,[radii[k]*1.12,radii[k]*1.12,radii[k]*1.12],hand,5,S,U,F,g.lowSphere);at=next}
+   let at=add(add(palm,fd,.021),across,(i-1.5)*.0082);const points=[at],splay=norm(add(fd,across,(i-1.5)*.12*(1+spread*1.5))),lengths=[.034,.027,.021],shorter=i===0||i===3?.86:1;
+   ball(at,[.0042,.0042,.0042],hand,5,S,U,F,g.lowSphere);
+   for(let k=0;k<3;k++){const bend=(curl+.05*Math.sin(t*2.7+i*1.3+sign))*(k+1),dir=norm(add(scale(splay,Math.cos(bend)),inward,Math.sin(bend)));at=add(at,dir,lengths[k]*shorter);points.push(at)}
+   tube(points,s=>.0037-.0014*s+.0004*Math.exp(-Math.pow((s-.38)/.06,2))+.0004*Math.exp(-Math.pow((s-.7)/.05,2)),hand,5,8,2);ball(at,[.0024,.0024,.0024],hand,5,S,U,F,g.lowSphere);
   }
-  let thumb=add(add(palm,across,.013),inward,.004);for(const [length,r] of [[.024,.0037],[.019,.003]]){const next=add(thumb,norm(add(add(scale(fd,.62),across,.45),inward,.42)),length);limb(thumb,next,r,hand,5);thumb=next}
+  const thumbStart=add(add(palm,across,.012),inward,.004),thumbDir=norm(add(add(scale(fd,.62),across,.45),inward,.42)),thumbMid=add(thumbStart,thumbDir,.024),thumbTip=add(thumbMid,norm(add(thumbDir,fd,.5)),.019);
+  tube([thumbStart,thumbMid,thumbTip],s=>.0042-.0016*s,hand,5,8,2);ball(thumbTip,[.0026,.0026,.0026],hand,5,S,U,F,g.lowSphere);
  }
  // Back tendrils: short and drooping at rest, long and spread like wings while hunting.
- const count=phone?4:6,segments=phone?9:12;
+ const count=phone?4:6,segments=phone?12:20;
  for(let i=0;i<count;i++){
-  const sideSign=i%2?1:-1,tier=Math.floor(i/2);let at=add(add(add(top,spine,-.035-tier*.035),front,-.036),S,sideSign*.025);
+  const sideSign=i%2?1:-1,tier=Math.floor(i/2);let at=add(add(add(top,spine,-.035-tier*.035),front,-.036),S,sideSign*.025);const points=[at];
   const length=(.22+spread*.58)*(1-tier*.12),dir=norm(add(add(scale(F,-(.75-spread*.35)),S,sideSign*(.35+spread*.75)),U,spread*(.45-tier*.32)-(1-spread)*(.25+tier*.2)));
   for(let k=0;k<segments;k++){const s=(k+1)/segments,speed=1.2+spread*1.6;
-   const bend=add(add(scale(U,Math.sin(t*speed+i*1.9+s*5.5)*.55*s-(1-spread)*.6*s),S,Math.cos(t*(speed*.85)+i*2.7+s*4.2)*.45*s*sideSign),F,0);
-   const next=add(at,norm(add(dir,bend)),length/segments);limb(at,next,.0105*(1-s*.85)+.0012,tendril,1);at=next}
+   const bend=add(scale(U,Math.sin(t*speed+i*1.9+s*5.5)*.55*s-(1-spread)*.6*s),S,Math.cos(t*(speed*.85)+i*2.7+s*4.2)*.45*s*sideSign);
+   at=add(at,norm(add(dir,bend)),length/segments);points.push(at)}
+  tube(points,s=>.0118*Math.pow(1-s,.9)+.0009,tendril,6,phone?7:10,1);
  }
+ flushGpuTubes(g,cached?null:batches,poseKey);
 }
 function drawGpuPictures(g,p){ensureWallPictures();const gl=g.gl,u=g.uniforms;for(const picture of world.wallPictures){if(distance(picture,p)>8)continue;const pose=picturePose(picture),ct=Math.cos(pose.tilt),st=Math.sin(pose.tilt),cr=Math.cos(pose.roll),sr=Math.sin(pose.roll),right=[picture.ny,0,-picture.nx],up=[-picture.nx*st,ct,-picture.ny*st],front=[picture.nx*ct,st,picture.ny*ct],R=right.map((v,i)=>v*cr+up[i]*sr),U=up.map((v,i)=>v*cr-right[i]*sr),mesh=g.pictureMeshes[[2,6,7,8,9,10].indexOf(picture.kind)];if(!mesh)continue;gl.uniformMatrix4fv(u.model,false,new Float32Array([...R,0,...U,0,...front,0,pose.x,pose.height,pose.z,1]));gl.uniformMatrix3fv(u.normalMatrix,false,new Float32Array([...R,...U,...front]));gl.uniform1f(u.solid,0);gl.uniform1f(u.emission,0);gl.bindVertexArray(mesh.vao);gl.drawArrays(gl.TRIANGLES,0,mesh.count);}}
 function drawGpuKey(g,key){
@@ -440,9 +476,9 @@ function renderGpuJumpscare(time){
   gl.viewport(0,0,g.surface.width,g.surface.height);gl.clearColor(0,0,0,1);gl.clear(gl.COLOR_BUFFER_BIT|gl.DEPTH_BUFFER_BIT);gl.useProgram(g.program);
   const shake=Math.max(0,1-time*1.2),pose={x:0,y:0,angle:Math.sin(time*61)*.025*shake,height:.84},camera=gpuCamera(pose,420+Math.cos(time*53)*10*shake);
   const approach=Math.min(1,time/.22),entity={x:1.15-.62*approach*approach,y:Math.sin(time*37)*.012,moveAngle:Math.PI,motion:0,state:'chase'};
-  gl.uniformMatrix4fv(u.vp,false,camera.vp);gl.uniformMatrix4fv(u.lightVP,false,camera.vp);gl.uniform3fv(u.eye,camera.eye);gl.uniform3fv(u.lightEye,[camera.eye[0],camera.eye[1]-.16,camera.eye[2]+.05]);gl.uniform3fv(u.forward,[camera.forward[0],.12,camera.forward[2]]);
+  gl.uniformMatrix4fv(u.vp,false,camera.vp);gl.uniformMatrix4fv(u.lightVP,false,camera.vp);gl.uniform3fv(u.eye,camera.eye);gl.uniform3fv(u.lightEye,[camera.eye[0]+.02,camera.eye[1]-.11,camera.eye[2]+.07]);gl.uniform3fv(u.forward,[camera.forward[0],.12,camera.forward[2]]);
   gl.uniform2f(u.shadowTexel,1/g.shadowSize,1/g.shadowSize);gl.uniform1i(u.shadowMap,1);gl.activeTexture(gl.TEXTURE1);gl.bindTexture(gl.TEXTURE_2D,g.shadowTexture);gl.uniform1i(u.grid,2);gl.uniform1i(u.gridSize,0);gl.activeTexture(gl.TEXTURE0);
-  gl.uniform1i(u.lampCount,0);gl.uniform1f(u.lampLevel,0);gl.uniform1f(u.normalLight,0);gl.uniform1f(u.psycho,1);gl.uniform1f(u.flashlight,1);gl.uniform1f(u.time,time);gl.uniform1f(u.dread,Math.min(1,.55+time*.6)*(.85+.15*Math.sin(time*40)));gl.uniform2f(u.resolution,g.surface.width,g.surface.height);
+  gl.uniform1i(u.lampCount,0);gl.uniform1f(u.lampLevel,0);gl.uniform1f(u.normalLight,0);gl.uniform1f(u.psycho,1);gl.uniform1f(u.flashlight,.38);gl.uniform1f(u.time,time);gl.uniform1f(u.dread,Math.min(1,.55+time*.6)*(.85+.15*Math.sin(time*40)));gl.uniform2f(u.resolution,g.surface.width,g.surface.height);
   drawGpuSlender(g,entity,pose,{time:20+time,lunge:time,target:camera.eye});
   gl.flush();ctx.drawImage(g.surface,0,0,1000,700);return true;
  }catch(error){console.warn('3D jumpscare fallback:',error.message);return false}
