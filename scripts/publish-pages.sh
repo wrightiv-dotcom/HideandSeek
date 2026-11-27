@@ -12,11 +12,13 @@ for file in index.html style.css characters.js motion.js game.js renderer.js gpu
 mkdir -p .pages-site/vendor
 cp vendor/peerjs.min.js vendor/peerjs.LICENSE .pages-site/vendor/
 mkdir -p .pages-site/assets
+mkdir -p .pages-site/assets/models
 cp assets/haunted-house.png assets/wall-plaster.jpg .pages-site/assets/
+cp assets/models/characters.glb .pages-site/assets/models/
 touch .pages-site/.nojekyll
 login=$("$gh" api user --jq .login)
 id=$("$gh" api user --jq .id)
-git -C .pages-site add index.html style.css characters.js motion.js game.js renderer.js gpu.js ambience.js multiplayer.js vendor/peerjs.min.js vendor/peerjs.LICENSE assets/haunted-house.png assets/wall-plaster.jpg .nojekyll
+git -C .pages-site add index.html style.css characters.js motion.js game.js renderer.js gpu.js ambience.js multiplayer.js vendor/peerjs.min.js vendor/peerjs.LICENSE assets/haunted-house.png assets/wall-plaster.jpg assets/models/characters.glb .nojekyll
 if ! git -C .pages-site diff --cached --quiet; then
  git -C .pages-site -c user.name="$login" -c user.email="${id}+${login}@users.noreply.github.com" commit -m 'Publish Hollow House game on GitHub Pages'
 fi
